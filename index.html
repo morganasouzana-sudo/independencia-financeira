@@ -309,7 +309,6 @@
 
                 // --- Cálculo Composição Patrimônio (Novo) ---
                 let totalInvestido = patrimonioLiq + restrito + (aporteMensal * mesesAcumulacao);
-                // Soma extras na fase de acumulação
                 inputs.aportesExtras.forEach(ap => {
                     const val = parseInt(ap.valor || "0")/100;
                     if (ap.tipo === 'recorrente') {
@@ -319,11 +318,8 @@
                     }
                 });
                 
-                // Se o saldo final for menor que o investido (prejuízo), juros é 0 para o gráfico não quebrar
-                // Caso contrário, Juros = Saldo Final - Total Investido
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
-                // Se houve prejuízo, ajustamos o 'Investido' para ser igual ao saldo final no gráfico, ou mostramos algo diferente?
-                // Vamos manter simples: Pizza mostra proporção positiva.
+                
                 const pieData = [
                     { name: 'Aportes (Principal)', value: Math.min(totalInvestido, saldoFinalAcumulacao), color: '#3b82f6' }, // Blue
                     { name: 'Juros (Rendimento)', value: totalJuros, color: '#10b981' } // Emerald
