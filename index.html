@@ -46,23 +46,37 @@
 
         /* Estilos de Impressão */
         @media print {
-            body { background: white; }
+            /* Configuração da Página: Margens e Tamanho */
+            @page {
+                size: A4;
+                margin: 15mm; /* Margem definida via código */
+            }
+
+            body { 
+                background: white; 
+                margin: 0;
+                padding: 0;
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important;
+            }
+
             .no-print { display: none !important; }
             .print-only { display: block !important; }
+            
             .card-print { 
                 box-shadow: none !important; 
                 border: 1px solid #ddd !important;
                 break-inside: avoid; /* Evita quebrar gráficos no meio da página */
                 margin-bottom: 20px;
+                page-break-inside: avoid;
             }
+            
             .section-break { 
                 margin-top: 20px; 
                 border-top: 2px solid #eee; 
                 padding-top: 20px; 
                 break-before: auto;
             }
-            /* Força impressão de cores de fundo */
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
         .print-only { display: none; }
     </style>
