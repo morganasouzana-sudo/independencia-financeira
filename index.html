@@ -70,12 +70,37 @@
 
         /* Estilos de Impressão */
         @media print {
-            @page { size: A4; margin: 15mm; }
-            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            /* Configuração da Página: Margens e Tamanho */
+            @page {
+                size: A4;
+                margin: 15mm; /* Margem definida via código */
+            }
+
+            body { 
+                background: white; 
+                margin: 0;
+                padding: 0;
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important;
+            }
+
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            .card-print { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; margin-bottom: 20px; page-break-inside: avoid; }
-            .section-break { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; break-before: auto; }
+            
+            .card-print { 
+                box-shadow: none !important; 
+                border: 1px solid #ddd !important;
+                break-inside: avoid; /* Evita quebrar gráficos no meio da página */
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+            
+            .section-break { 
+                margin-top: 20px; 
+                border-top: 2px solid #eee; 
+                padding-top: 20px; 
+                break-before: auto;
+            }
         }
         .print-only { display: none; }
     </style>
@@ -88,7 +113,7 @@
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -690,9 +715,20 @@
                             </div>
                         </div>
                         <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${results.durouTudo ? 'border-emerald-500' : 'border-red-500'}`}>
-                            <div className="text-sm text-gray-500 uppercase font-semibold">Longevidade</div>
-                            <div className="text-3xl font-bold text-gray-800 mt-1">{results.durouTudo ? "Vitalício" : `${Math.floor(results.mesFimDinheiro / 12)} anos`}</div>
-                            <div className="text-sm mt-2 text-gray-600">{results.durouTudo ? "Seu dinheiro não acaba." : "O dinheiro acaba antes do fim."}</div>
+                            <div className="text-sm text-gray-500 uppercase font-semibold">Longevidade (Aposentadoria)</div>
+                            <div className="text-3xl font-bold text-gray-800 mt-1">
+                                {results.durouTudo 
+                                    ? `Cobre todo o período (+${inputs.anosUsufruto} anos)` 
+                                    : results.mesFimDinheiro <= inputs.anosAcumulacao * 12 
+                                        ? "Acaba na fase de acumulação"
+                                        : `${Math.floor((results.mesFimDinheiro - (inputs.anosAcumulacao * 12)) / 12)} anos cobertos`
+                                }
+                            </div>
+                            <div className="text-sm mt-2 text-gray-600">
+                                {results.durouTudo 
+                                    ? "O dinheiro não acaba antes do fim." 
+                                    : `Acaba antes da meta de ${inputs.anosUsufruto} anos.`}
+                            </div>
                         </div>
                     </div>
                     <Card className="h-80 mb-6 mt-6">
@@ -828,7 +864,7 @@
                             <InputGroup label="Valor do Bem" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                             <InputGroup label="Comprar em (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} />
                             <InputGroup label="Aluguel Atual" icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText="Economizado ao comprar" />
-                            <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
+                            <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% do valor se for À Vista." />
                             <InputGroup label="Taxa Financiamento" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} />
                             <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
                         </div>
