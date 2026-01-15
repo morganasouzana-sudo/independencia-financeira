@@ -32,7 +32,6 @@ body {
 h1 {
   text-align: center;
   color: var(--secondary);
-  margin-bottom: 10px;
 }
 
 h2 {
@@ -115,23 +114,68 @@ canvas {
 
 <h2>Parâmetros Principais</h2>
 <div class="grid">
-  <div><label>Patrimônio Livre Atual</label><input id="patrimonio" type="number" value="100000"></div>
-  <div><label>Aporte Mensal Livre</label><input id="aporte" type="number" value="3000"></div>
-  <div><label>Anos de Acumulação</label><input id="anos" type="number" value="30"></div>
-  <div><label>Saque Mensal no Usufruto</label><input id="saque" type="number" value="8000"></div>
-  <div><label>Anos de Usufruto</label><input id="anosUsu" type="number" value="35"></div>
-  <div><label>Retorno Real da Carteira (%)</label><input id="retorno" type="number" value="7"></div>
+  <div>
+    <label>Patrimônio Livre Atual</label>
+    <input id="patrimonio" type="text" value="100.000,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Aporte Mensal Livre</label>
+    <input id="aporte" type="text" value="3.000,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Anos de Acumulação</label>
+    <input id="anos" type="number" value="30">
+  </div>
+
+  <div>
+    <label>Saque Mensal no Usufruto</label>
+    <input id="saque" type="text" value="8.000,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Anos de Usufruto</label>
+    <input id="anosUsu" type="number" value="35">
+  </div>
+
+  <div>
+    <label>Retorno Real da Carteira (%)</label>
+    <input id="retorno" type="number" value="7">
+  </div>
 </div>
 
 <h2>Balde Previdência & FGTS</h2>
 <div class="grid">
-  <div><label>Saldo Previdência</label><input id="prevSaldo" type="number" value="80000"></div>
-  <div><label>Aporte Mensal Previdência</label><input id="prevAporte" type="number" value="1000"></div>
-  <div><label>Retorno Previdência (%)</label><input id="prevRet" type="number" value="6"></div>
+  <div>
+    <label>Saldo Previdência</label>
+    <input id="prevSaldo" type="text" value="80.000,00" oninput="formatarMoedaBR(this)">
+  </div>
 
-  <div><label>Saldo FGTS</label><input id="fgtsSaldo" type="number" value="50000"></div>
-  <div><label>Aporte Mensal FGTS</label><input id="fgtsAporte" type="number" value="0"></div>
-  <div><label>Retorno FGTS (%)</label><input id="fgtsRet" type="number" value="3"></div>
+  <div>
+    <label>Aporte Mensal Previdência</label>
+    <input id="prevAporte" type="text" value="1.000,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Retorno Previdência (%)</label>
+    <input id="prevRet" type="number" value="6">
+  </div>
+
+  <div>
+    <label>Saldo FGTS</label>
+    <input id="fgtsSaldo" type="text" value="50.000,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Aporte Mensal FGTS</label>
+    <input id="fgtsAporte" type="text" value="0,00" oninput="formatarMoedaBR(this)">
+  </div>
+
+  <div>
+    <label>Retorno FGTS (%)</label>
+    <input id="fgtsRet" type="number" value="3">
+  </div>
 </div>
 
 <label style="margin-top:15px; display:block;">
@@ -154,21 +198,36 @@ canvas {
 <script>
 let chart;
 
+/* ===== MÁSCARA DE MOEDA ===== */
+function formatarMoedaBR(input) {
+  let valor = input.value.replace(/\D/g, "");
+  valor = (valor / 100).toFixed(2);
+  valor = valor.replace(".", ",");
+  valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  input.value = valor;
+}
+
+function moedaParaNumero(valor) {
+  if (!valor) return 0;
+  return Number(valor.replace(/\./g, "").replace(",", "."));
+}
+
+/* ===== SIMULAÇÃO ===== */
 function simular() {
 
-  let patrimonio = Number(document.getElementById("patrimonio").value);
-  let aporte = Number(document.getElementById("aporte").value);
+  let patrimonio = moedaParaNumero(document.getElementById("patrimonio").value);
+  let aporte = moedaParaNumero(document.getElementById("aporte").value);
   let anosAcc = Number(document.getElementById("anos").value);
-  let saque = Number(document.getElementById("saque").value);
+  let saque = moedaParaNumero(document.getElementById("saque").value);
   let anosUsu = Number(document.getElementById("anosUsu").value);
   let retorno = Number(document.getElementById("retorno").value) / 100;
 
-  let prev = Number(document.getElementById("prevSaldo").value);
-  let prevAporte = Number(document.getElementById("prevAporte").value);
+  let prev = moedaParaNumero(document.getElementById("prevSaldo").value);
+  let prevAporte = moedaParaNumero(document.getElementById("prevAporte").value);
   let prevRet = Number(document.getElementById("prevRet").value) / 100;
 
-  let fgts = Number(document.getElementById("fgtsSaldo").value);
-  let fgtsAporte = Number(document.getElementById("fgtsAporte").value);
+  let fgts = moedaParaNumero(document.getElementById("fgtsSaldo").value);
+  let fgtsAporte = moedaParaNumero(document.getElementById("fgtsAporte").value);
   let fgtsRet = Number(document.getElementById("fgtsRet").value) / 100;
 
   let usarAlt = document.getElementById("usarAlternativos").checked;
@@ -176,7 +235,7 @@ function simular() {
   let labels = [];
   let dados = [];
 
-  // ACUMULAÇÃO
+  /* ACUMULAÇÃO */
   for (let a = 1; a <= anosAcc; a++) {
     patrimonio = patrimonio * (1 + retorno) + aporte * 12;
     prev = prev * (1 + prevRet) + prevAporte * 12;
@@ -186,7 +245,7 @@ function simular() {
     dados.push(patrimonio);
   }
 
-  // USUFRUTO
+  /* USUFRUTO */
   let totalUsufruto = patrimonio + (usarAlt ? prev + fgts : 0);
 
   for (let u = 1; u <= anosUsu; u++) {
@@ -208,6 +267,7 @@ function simular() {
   renderGrafico(labels, dados);
 }
 
+/* ===== GRÁFICO ===== */
 function renderGrafico(labels, dados) {
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById("grafico"), {
