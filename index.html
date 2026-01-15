@@ -43,6 +43,21 @@
         /* Scrollbar customizada para lista de aportes */
         .scrollbar-thin::-webkit-scrollbar { width: 6px; }
         .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+
+        /* Estilos de Impressão */
+        @media print {
+            body { background: white; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .card-print { 
+                box-shadow: none !important; 
+                border: 1px solid #ddd !important;
+                break-inside: avoid;
+            }
+            /* Força impressão de cores de fundo (gráficos) */
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+        .print-only { display: none; }
     </style>
 </head>
 <body class="bg-slate-50">
@@ -53,12 +68,12 @@
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
         const Card = ({ children, className = "" }) => (
-            <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 ${className}`}>
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 ${className} card-print`}>
                 {children}
             </div>
         );
@@ -114,6 +129,66 @@
                 </div>
             );
         };
+
+        // --- COMPONENTES DE IMPRESSÃO ---
+        
+        const PrintHeader = ({ activeTab }) => (
+            <div className="print-only mb-8">
+                <div className="flex justify-between items-end border-b-2 border-emerald-600 pb-4 mb-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                            <Calculator size={32} className="text-emerald-600"/> 
+                            Relatório Financeiro
+                        </h1>
+                        <p className="text-slate-500 mt-1">Simulação de Independência Financeira</p>
+                    </div>
+                    <div className="text-right text-sm text-slate-500">
+                        <p>Gerado em: <strong>{new Date().toLocaleDateString()}</strong> às {new Date().toLocaleTimeString()}</p>
+                        <p>Visualização: {activeTab === 'simulacao' ? 'Padrão' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const PrintSummary = ({ inputs, formatMoney }) => (
+            <div className="print-only mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                <h3 className="font-bold text-slate-700 mb-3 uppercase text-xs tracking-wider">Parâmetros da Simulação</h3>
+                <div className="grid grid-cols-4 gap-y-4 gap-x-8">
+                    <div>
+                        <span className="block text-slate-400 text-xs">Patrimônio Atual</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio))}</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Aporte Mensal</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte))}</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Saque Desejado</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.saque))}</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Rentabilidade</span>
+                        <span className="font-semibold text-slate-800">{inputs.retornoAno}% a.a. {inputs.considerarInflacao ? '(Nominal)' : '(Real)'}</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Acumulação</span>
+                        <span className="font-semibold text-slate-800">{inputs.anosAcumulacao} anos</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Usufruto</span>
+                        <span className="font-semibold text-slate-800">{inputs.anosUsufruto} anos</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Inflação Est.</span>
+                        <span className="font-semibold text-slate-800">{inputs.inflacao}% a.a.</span>
+                    </div>
+                    <div>
+                        <span className="block text-slate-400 text-xs">Outros Ativos</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonioRestrito) + parseInt(inputs.patrimonioImobilizado))}</span>
+                    </div>
+                </div>
+            </div>
+        );
 
         // --- COMPONENTE PRINCIPAL ---
 
@@ -190,6 +265,10 @@
 
             const removerAporteExtra = (id) => {
                 setInputs(prev => ({ ...prev, aportesExtras: prev.aportesExtras.filter(a => a.id !== id) }));
+            };
+
+            const handlePrint = () => {
+                window.print();
             };
 
             const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -364,15 +443,13 @@
                     ];
                 }
 
-                // Adiciona metas críticas se não existirem (com margem de erro)
                 const addIfMissing = (val, name, props={}) => {
                     if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) {
                         marcosList.push({ valor: val, nome: name, ...props });
                     } else {
-                        // Se já existe perto, atualiza nome se for importante
                         const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000);
                         if (props.alvo) {
-                            existing.nome = name; // Force name overwrite for target
+                            existing.nome = name; 
                             existing.alvo = true;
                         }
                     }
@@ -382,8 +459,6 @@
                 if (milestoneMode !== 'padrao') addIfMissing(1000000, "1º Milhão", { especial: true });
 
                 marcosList.sort((a,b) => a.valor - b.valor);
-                
-                // Calcula datas
                 marcosList = marcosList.map(m => ({ ...m, atingidoEm: null }));
                 
                 simBase.data.forEach(ponto => {
@@ -424,7 +499,7 @@
                 // Projetos
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
-                const projAluguel = parseInt(inputs.projetoAluguelAtual || "0") / 100; // NOVO
+                const projAluguel = parseInt(inputs.projetoAluguelAtual || "0") / 100; 
                 const projMes = inputs.projetoAno * 12;
                 const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
                 const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
@@ -543,7 +618,7 @@
                     totalInvestido, totalJuros
                 };
 
-            }, [inputs, milestoneMode]); // Adicionado milestoneMode as dep
+            }, [inputs, milestoneMode]); 
 
             // Formatadores
             const formatTempo = (m) => {
@@ -577,20 +652,32 @@
             return (
                 <div className="min-h-screen pb-10">
                     
-                    <div className="bg-emerald-600 text-white py-8 shadow-lg">
-                        <div className="max-w-6xl mx-auto px-4">
-                            <h1 className="text-3xl font-bold flex items-center gap-3">
-                                <Calculator className="h-8 w-8" />
-                                Simulador de Independência Financeira
-                            </h1>
-                            <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
+                    <div className="bg-emerald-600 text-white py-8 shadow-lg no-print">
+                        <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
+                            <div>
+                                <h1 className="text-3xl font-bold flex items-center gap-3">
+                                    <Calculator className="h-8 w-8" />
+                                    Simulador de Independência Financeira
+                                </h1>
+                                <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
+                            </div>
+                            <button 
+                                onClick={handlePrint}
+                                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                                title="Salvar PDF / Imprimir"
+                            >
+                                <Printer size={20} />
+                                <span className="hidden sm:inline">Salvar PDF</span>
+                            </button>
                         </div>
                     </div>
 
                     <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
                         
-                        {/* LEFT COLUMN */}
-                        <div className="lg:col-span-4 space-y-6">
+                        <PrintHeader activeTab={activeTab} />
+
+                        {/* LEFT COLUMN - Ocultar na impressão para salvar espaço e usar o sumário */}
+                        <div className="lg:col-span-4 space-y-6 no-print">
                             
                             <Card>
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
@@ -687,10 +774,12 @@
                         </div>
 
                         {/* RIGHT COLUMN */}
-                        <div className="lg:col-span-8 space-y-6">
+                        <div className="lg:col-span-8 print:col-span-12 print:w-full space-y-6">
+
+                            <PrintSummary inputs={inputs} formatMoney={formatMoney} />
 
                             {/* TAB NAV */}
-                            <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto pb-1">
+                            <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto pb-1 no-print">
                                 <button onClick={() => setActiveTab('simulacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Simulação Padrão</button>
                                 <button onClick={() => setActiveTab('marcos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'marcos' ? 'border-b-2 border-amber-500 text-amber-700' : 'text-gray-500 hover:text-gray-700'}`}><Flag size={16}/> Marcos</button>
                                 <button onClick={() => setActiveTab('projetos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'projetos' ? 'border-b-2 border-blue-500 text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}><Briefcase size={16}/> Projetos</button>
@@ -826,7 +915,7 @@
                                         <div className="flex justify-between items-center mb-4">
                                             <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2"><Flag className="w-5 h-5"/> Linha do Tempo</h3>
                                             
-                                            <div className="relative group">
+                                            <div className="relative group no-print">
                                                 <select 
                                                     value={milestoneMode}
                                                     onChange={(e) => setMilestoneMode(e.target.value)}
