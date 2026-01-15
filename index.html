@@ -306,6 +306,9 @@
                 // 1. Simulação Base
                 const simBase = runSimulation();
                 
+                // Saldo Final da Acumulação (Para Crise e KPIs)
+                const saldoFinalAcumulacao = simBase.data.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0;
+
                 // 2. Marcos
                 let marcos = [
                     { valor: 100000, nome: "100 Mil", atingidoEm: null },
@@ -390,7 +393,22 @@
                 else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
                 else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
 
-                // 6. Risco (Monte Carlo Simplificado)
+                // 6. Crise (Teste de Estresse)
+                // Simula queda de 30% no saldo acumulado (Liquido + Restrito) no momento da aposentadoria
+                let saldoCrise = saldoFinalAcumulacao * 0.7; // -30%
+                let sobreviveuCrise = true;
+                for (let m = 1; m <= mesesUsufruto; m++) {
+                    saldoCrise = saldoCrise * (1 + taxaMensalInv) - saqueMensal;
+                    // Aportes extras pontuais na aposentadoria (ex: venda de imóvel programada)
+                    saldoCrise += getExtraInflow(mesesAcumulacao + m, false);
+                    
+                    if (saldoCrise < 0) {
+                        sobreviveuCrise = false;
+                        break;
+                    }
+                }
+
+                // 7. Risco (Monte Carlo Simplificado)
                 const simulacoes = 200;
                 let falhas = 0;
                 for (let s = 0; s < simulacoes; s++) {
@@ -427,13 +445,14 @@
 
                 return {
                     baseData: simBase.data,
-                    saldoFinalAcumulacao: simBase.data.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0,
+                    saldoFinalAcumulacao,
                     montanteNecessario,
                     sucesso: !simBase.mesFim && (simBase.saldoFinal > 0),
                     durouTudo: simBase.mesFim === null,
                     mesFimDinheiro: simBase.mesFim,
                     saldoFinalTotal: simBase.saldoFinal,
                     imobilizado,
+                    sobreviveuCrise, // Adicionado de volta
                     riscoRuina: (falhas / simulacoes) * 100,
                     simAvista, simFinanc, comparativoProj, parcela, melhorEstrat,
                     marcos,
@@ -830,6 +849,31 @@
                                                 <p className="text-sm text-gray-600 mt-1">Probabilidade do dinheiro acabar considerando a volatilidade do mercado.</p>
                                             </div>
                                             <div className="text-right"><span className={`text-4xl font-bold ${results.riscoRuina < 5 ? 'text-emerald-600' : 'text-red-600'}`}>{results.riscoRuina.toFixed(1)}%</span></div>
+                                        </div>
+                                    </Card>
+
+                                    {/* CRISIS CARD (RESTAURADO) */}
+                                    <Card className={`border-l-4 ${results.sobreviveuCrise ? 'border-l-blue-500' : 'border-l-red-500'}`}>
+                                        <div className="flex items-start gap-4">
+                                            <div className={`p-3 rounded-full ${results.sobreviveuCrise ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+                                                {results.sobreviveuCrise ? <ShieldCheck size={24} /> : <Zap size={24} />}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-800">
+                                                    Simulação de Crise Severa (-30%)
+                                                </h3>
+                                                <p className="text-sm text-gray-600 mt-1">
+                                                    Teste de estresse simulando uma queda de 30% na bolsa no dia exato da sua aposentadoria.
+                                                </p>
+                                                
+                                                <div className={`mt-4 p-4 rounded-lg border ${results.sobreviveuCrise ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+                                                    <p className={`font-semibold ${results.sobreviveuCrise ? 'text-blue-800' : 'text-red-800'}`}>
+                                                        {results.sobreviveuCrise 
+                                                            ? "✅ O plano sobrevive." 
+                                                            : "❌ O dinheiro acaba antes do fim."}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </Card>
                                 </div>
