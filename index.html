@@ -1,448 +1,632 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine } from 'recharts';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
-
-const Card = ({ children, className = "" }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className}`}>
-    {children}
-  </div>
-);
-
-const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "" }) => {
-  const handleChange = (e) => {
-    let val = e.target.value;
-    if (type === "currency") {
-      val = val.replace(/\D/g, "");
-      onChange(val); // Store raw number string (cents)
-    } else {
-      onChange(val);
-    }
-  };
-
-  const displayValue = () => {
-    if (type === "currency") {
-      if (!value) return "";
-      return (parseInt(value) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-    }
-    return value;
-  };
-
-  return (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <div className="relative rounded-md shadow-sm">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Icon className="h-5 w-5 text-gray-400" />
-        </div>
-        <input
-          type={type === "number" ? "number" : "text"}
-          value={displayValue()}
-          onChange={handleChange}
-          className="block w-full pl-10 pr-12 py-3 border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors"
-          placeholder="0,00"
-        />
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-          <span className="text-gray-500 sm:text-sm">{suffix}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default function FinancialPlanner() {
-  // --- STATE ---
-  const [inputs, setInputs] = useState({
-    patrimonio: "0",
-    aporte: "150000", // 1500,00
-    anosAcumulacao: 20,
-    saque: "400000", // 4000,00
-    anosUsufruto: 30,
-    retornoAno: 8, // %
-    inflacao: 4, // %
-    margemSeguranca: 20, // %
-    considerarInflacao: false // false = juros reais, true = nominal
-  });
-
-  const [showDetails, setShowDetails] = useState(false);
-
-  // Load from local storage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('financial_plan_v2');
-    if (saved) {
-      try {
-        setInputs(JSON.parse(saved));
-      } catch (e) { console.error("Error loading save", e); }
-    }
-  }, []);
-
-  // Save to local storage on change
-  useEffect(() => {
-    localStorage.setItem('financial_plan_v2', JSON.stringify(inputs));
-  }, [inputs]);
-
-  const updateInput = (field, value) => {
-    setInputs(prev => ({ ...prev, [field]: value }));
-  };
-
-  // --- CALCULATION ENGINE ---
-  const simulation = useMemo(() => {
-    const patrimonioInicial = parseInt(inputs.patrimonio || "0") / 100;
-    const aporteMensal = parseInt(inputs.aporte || "0") / 100;
-    const saqueMensal = parseInt(inputs.saque || "0") / 100;
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planejador Financeiro Pro</title>
     
-    // Taxas
-    const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
-    const taxaInflacao = parseFloat(inputs.inflacao) / 100;
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    // Ajuste da taxa baseada no modo (Real vs Nominal)
-    // Se o usuário escolhe "Juros Reais" (considerarInflacao = false), usamos a taxa cheia como ganho real.
-    // Se escolhe "Nominal", descontamos a inflação para ver o poder de compra real no gráfico, 
-    // OU calculamos nominalmente e inflacionamos os aportes/saques.
-    // Para simplificar e manter a precisão: Vamos trabalhar sempre com Juros Reais Efetivos para a projeção de poder de compra.
-    
-    let taxaMensalEfetiva;
-    
-    if (inputs.considerarInflacao) {
-        // Modo Nominal: O usuário inseriu taxa nominal. Calculamos a real aproximada (Fisher equation)
-        const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
-        taxaMensalEfetiva = Math.pow(1 + taxaReal, 1/12) - 1;
-    } else {
-        // Modo Real: O usuário já inseriu o ganho acima da inflação
-        taxaMensalEfetiva = Math.pow(1 + taxaRetorno, 1/12) - 1;
+    <!-- Configuração do Tailwind para usar a fonte correta -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Segoe UI', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Import Map: Ensina o navegador onde buscar os pacotes React e Recharts -->
+    <!-- FIX: Adicionado "react-dom" para resolver dependências internas de bibliotecas -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom": "https://esm.sh/react-dom@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
+            "lucide-react": "https://esm.sh/lucide-react@0.330.0?external=react"
+        }
     }
+    </script>
 
-    const mesesAcumulacao = inputs.anosAcumulacao * 12;
-    const mesesUsufruto = inputs.anosUsufruto * 12;
-    const totalMeses = mesesAcumulacao + mesesUsufruto;
-
-    let saldo = patrimonioInicial;
-    let dadosGrafico = [];
-    let saldoMaximo = 0;
-    let mesFimDinheiro = null;
-
-    // Simulação Mês a Mês
-    for (let m = 1; m <= totalMeses; m++) {
-      const isAcumulacao = m <= mesesAcumulacao;
-      const ano = Math.floor(m / 12);
-      
-      // Juros do mês
-      saldo = saldo * (1 + taxaMensalEfetiva);
-
-      if (isAcumulacao) {
-        saldo += aporteMensal;
-      } else {
-        saldo -= saqueMensal;
-      }
-
-      // Evitar saldo negativo infinito para o gráfico não quebrar
-      if (saldo < 0) {
-        if (mesFimDinheiro === null) mesFimDinheiro = m;
-        saldo = 0;
-      }
-
-      if (saldo > saldoMaximo) saldoMaximo = saldo;
-
-      // Adiciona ponto ao gráfico (a cada 12 meses para não pesar)
-      if (m % 12 === 0 || m === totalMeses || m === mesesAcumulacao) {
-        dadosGrafico.push({
-          ano: ano,
-          mes: m,
-          saldo: Math.round(saldo),
-          fase: isAcumulacao ? "Acumulação" : "Usufruto"
-        });
-      }
-    }
-
-    // Cálculo do Montante Necessário (Regra da Perpetuidade ou Anuidade com Margem)
-    // Valor Presente de uma anuidade para os anos de usufruto
-    // VP = Pmt * (1 - (1+i)^-n) / i
-    const i = taxaMensalEfetiva;
-    const n = mesesUsufruto;
-    const montanteMatematico = i > 0 
-      ? saqueMensal * (1 - Math.pow(1 + i, -n)) / i 
-      : saqueMensal * n; // Se juros forem 0
-
-    const montanteNecessario = montanteMatematico * (1 + (inputs.margemSeguranca / 100));
+    <!-- Babel Standalone: Permite rodar JSX (código React) direto no navegador -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    const saldoFinalAcumulacao = dadosGrafico.find(d => d.mes === mesesAcumulacao)?.saldo || 0;
-    const sucesso = saldoFinalAcumulacao >= montanteNecessario;
-    const durouTudo = mesFimDinheiro === null;
+    <style>
+        /* Estilos extras para garantir visualização limpa */
+        body { -webkit-font-smoothing: antialiased; }
+        .recharts-wrapper { margin: 0 auto; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    
+    <!-- Onde o React vai montar o app -->
+    <div id="root"></div>
 
-    return {
-      dadosGrafico,
-      saldoFinalAcumulacao,
-      montanteNecessario,
-      sucesso,
-      durouTudo,
-      mesFimDinheiro,
-      saldoFinalTotal: dadosGrafico[dadosGrafico.length - 1].saldo
-    };
+    <!-- Seu Código React (Tipo "text/babel" para ser processado) -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine } from 'recharts';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap } from 'lucide-react';
 
-  }, [inputs]);
+        // --- COMPONENTES UI ---
 
-  const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
-      
-      {/* HEADER */}
-      <div className="bg-emerald-600 text-white py-8 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Calculator className="h-8 w-8" />
-            Simulador de Independência Financeira
-          </h1>
-          <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LEFT COLUMN: INPUTS */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card>
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
-              <TrendingUp className="h-5 w-5" />
-              Fase de Acumulação
-            </h2>
-            <InputGroup 
-              label="Patrimônio Atual" 
-              icon={DollarSign} 
-              value={inputs.patrimonio} 
-              onChange={v => updateInput("patrimonio", v)} 
-            />
-            <InputGroup 
-              label="Aporte Mensal" 
-              icon={TrendingUp} 
-              value={inputs.aporte} 
-              onChange={v => updateInput("aporte", v)} 
-            />
-            <InputGroup 
-              label="Anos Acumulando" 
-              icon={Calendar} 
-              type="number"
-              prefix=""
-              suffix="anos"
-              value={inputs.anosAcumulacao} 
-              onChange={v => updateInput("anosAcumulacao", v)} 
-            />
-          </Card>
-
-          <Card>
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600">
-              <TrendingDown className="h-5 w-5" />
-              Fase de Usufruto (Aposentadoria)
-            </h2>
-            <InputGroup 
-              label="Saque Mensal Desejado" 
-              icon={DollarSign} 
-              value={inputs.saque} 
-              onChange={v => updateInput("saque", v)} 
-            />
-            <InputGroup 
-              label="Duração da Aposentadoria" 
-              icon={Calendar} 
-              type="number"
-              prefix=""
-              suffix="anos"
-              value={inputs.anosUsufruto} 
-              onChange={v => updateInput("anosUsufruto", v)} 
-            />
-          </Card>
-
-          <Card>
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
-              <ShieldCheck className="h-5 w-5" />
-              Premissas
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-                <InputGroup 
-                label="Retorno Anual" 
-                icon={TrendingUp} 
-                type="number"
-                prefix=""
-                suffix="%"
-                value={inputs.retornoAno} 
-                onChange={v => updateInput("retornoAno", v)} 
-                />
-                <InputGroup 
-                label="Margem Seg." 
-                icon={ShieldCheck} 
-                type="number"
-                prefix=""
-                suffix="%"
-                value={inputs.margemSeguranca} 
-                onChange={v => updateInput("margemSeguranca", v)} 
-                />
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className}`}>
+                {children}
             </div>
-            
-            <div className="mt-4 p-3 bg-slate-100 rounded-lg">
-                <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                        type="checkbox" 
-                        checked={inputs.considerarInflacao}
-                        onChange={(e) => updateInput('considerarInflacao', e.target.checked)}
-                        className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5"
-                    />
-                    <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
-                </label>
-                
-                {inputs.considerarInflacao && (
-                    <div className="mt-3 animate-fade-in">
-                        <InputGroup 
-                            label="Inflação Estimada" 
-                            icon={TrendingDown} 
-                            type="number"
-                            prefix=""
-                            suffix="%"
-                            value={inputs.inflacao} 
-                            onChange={v => updateInput("inflacao", v)} 
+        );
+
+        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "" }) => {
+            const handleChange = (e) => {
+                let val = e.target.value;
+                if (type === "currency") {
+                    val = val.replace(/\D/g, "");
+                    onChange(val); 
+                } else {
+                    onChange(val);
+                }
+            };
+
+            const displayValue = () => {
+                if (type === "currency") {
+                    if (!value) return "";
+                    return (parseInt(value) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+                }
+                return value;
+            };
+
+            return (
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                    <div className="relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Icon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type={type === "number" ? "number" : "text"}
+                            value={displayValue()}
+                            onChange={handleChange}
+                            className="block w-full pl-10 pr-12 py-3 border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors"
+                            placeholder="0,00"
                         />
-                        <p className="text-xs text-slate-500 mt-1">
-                            A taxa real calculada será de aprox. {((((1 + inputs.retornoAno/100)/(1 + inputs.inflacao/100))-1)*100).toFixed(2)}%
-                        </p>
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <span className="text-gray-500 sm:text-sm">{suffix}</span>
+                        </div>
                     </div>
-                )}
-                {!inputs.considerarInflacao && (
-                    <p className="text-xs text-slate-500 mt-2 ml-7">
-                        Considerando que a taxa acima já é o ganho real (acima da inflação).
-                    </p>
-                )}
-            </div>
-          </Card>
-        </div>
+                </div>
+            );
+        };
 
-        {/* RIGHT COLUMN: RESULTS */}
-        <div className="lg:col-span-8 space-y-6">
-            
-            {/* KPI GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${simulation.sucesso ? 'border-emerald-500' : 'border-red-500'}`}>
-                    <div className="text-sm text-gray-500 uppercase font-semibold">Patrimônio Acumulado</div>
-                    <div className="text-3xl font-bold text-gray-800 mt-1">
-                        {formatMoney(simulation.saldoFinalAcumulacao)}
-                    </div>
-                    <div className="text-sm mt-2 text-gray-600">
-                        Meta com margem: <span className="font-medium">{formatMoney(simulation.montanteNecessario)}</span>
-                    </div>
-                    <div className={`mt-3 text-sm font-medium ${simulation.sucesso ? 'text-emerald-600' : 'text-red-600'} flex items-center gap-1`}>
-                        {simulation.sucesso ? <ShieldCheck size={16}/> : <AlertCircle size={16}/>}
-                        {simulation.sucesso 
-                            ? `Sobra de ${formatMoney(simulation.saldoFinalAcumulacao - simulation.montanteNecessario)}` 
-                            : `Faltam ${formatMoney(simulation.montanteNecessario - simulation.saldoFinalAcumulacao)}`
+        // --- COMPONENTE PRINCIPAL ---
+
+        function FinancialPlanner() {
+            // --- STATE ---
+            const [inputs, setInputs] = useState({
+                patrimonio: "0",
+                aporte: "150000", // 1500,00
+                anosAcumulacao: 20,
+                saque: "400000", // 4000,00
+                anosUsufruto: 30,
+                retornoAno: 8, // %
+                inflacao: 4, // %
+                margemSeguranca: 20, // %
+                considerarInflacao: false // false = juros reais, true = nominal
+            });
+
+            const [showDetails, setShowDetails] = useState(false);
+            const [activeTab, setActiveTab] = useState('simulacao'); // 'simulacao' | 'risco'
+
+            // Load from local storage on mount
+            useEffect(() => {
+                const saved = localStorage.getItem('financial_plan_v3');
+                if (saved) {
+                    try {
+                        setInputs(JSON.parse(saved));
+                    } catch (e) { console.error("Error loading save", e); }
+                }
+            }, []);
+
+            // Save to local storage on change
+            useEffect(() => {
+                localStorage.setItem('financial_plan_v3', JSON.stringify(inputs));
+            }, [inputs]);
+
+            const updateInput = (field, value) => {
+                setInputs(prev => ({ ...prev, [field]: value }));
+            };
+
+            // --- ENGINE DE CÁLCULO UNIFICADA ---
+            const results = useMemo(() => {
+                // 1. Parse inputs
+                const patrimonioInicial = parseInt(inputs.patrimonio || "0") / 100;
+                const aporteMensal = parseInt(inputs.aporte || "0") / 100;
+                const saqueMensal = parseInt(inputs.saque || "0") / 100;
+                const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
+                const taxaInflacao = parseFloat(inputs.inflacao) / 100;
+                
+                // Taxa Efetiva
+                let taxaMensalEfetiva;
+                if (inputs.considerarInflacao) {
+                    const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
+                    taxaMensalEfetiva = Math.pow(1 + taxaReal, 1/12) - 1;
+                } else {
+                    taxaMensalEfetiva = Math.pow(1 + taxaRetorno, 1/12) - 1;
+                }
+
+                const mesesAcumulacao = inputs.anosAcumulacao * 12;
+                const mesesUsufruto = inputs.anosUsufruto * 12;
+                const totalMeses = mesesAcumulacao + mesesUsufruto;
+
+                // --- SIMULAÇÃO PRINCIPAL (DETERMINÍSTICA) ---
+                let saldo = patrimonioInicial;
+                let dadosGrafico = [];
+                let mesFimDinheiro = null;
+
+                for (let m = 1; m <= totalMeses; m++) {
+                    const isAcumulacao = m <= mesesAcumulacao;
+                    const ano = Math.floor(m / 12);
+                    
+                    saldo = saldo * (1 + taxaMensalEfetiva);
+
+                    if (isAcumulacao) {
+                        saldo += aporteMensal;
+                    } else {
+                        saldo -= saqueMensal;
+                    }
+
+                    if (saldo < 0) {
+                        if (mesFimDinheiro === null) mesFimDinheiro = m;
+                        saldo = 0;
+                    }
+
+                    if (m % 12 === 0 || m === totalMeses || m === mesesAcumulacao) {
+                        dadosGrafico.push({
+                            ano: ano,
+                            mes: m,
+                            saldo: Math.round(saldo),
+                            fase: isAcumulacao ? "Acumulação" : "Usufruto"
+                        });
+                    }
+                }
+
+                // --- CÁLCULO DE KPIS ---
+                const i = taxaMensalEfetiva;
+                const n = mesesUsufruto;
+                const montanteMatematico = i > 0 
+                    ? saqueMensal * (1 - Math.pow(1 + i, -n)) / i 
+                    : saqueMensal * n;
+
+                const montanteNecessario = montanteMatematico * (1 + (inputs.margemSeguranca / 100));
+                const saldoFinalAcumulacao = dadosGrafico.find(d => d.mes === mesesAcumulacao)?.saldo || 0;
+                const sucesso = saldoFinalAcumulacao >= montanteNecessario;
+                const durouTudo = mesFimDinheiro === null;
+
+                // --- SIMULAÇÃO DE CRISE (-30% no início do usufruto) ---
+                let saldoCrise = saldoFinalAcumulacao * 0.7; // -30%
+                let sobreviveuCrise = true;
+                for (let m = 1; m <= mesesUsufruto; m++) {
+                    saldoCrise = saldoCrise * (1 + taxaMensalEfetiva) - saqueMensal;
+                    if (saldoCrise <= 0) {
+                        sobreviveuCrise = false;
+                        break;
+                    }
+                }
+
+                // --- SIMULAÇÃO DE MONTE CARLO (RISCO DE RUÍNA) ---
+                const simulacoes = 500;
+                let falhas = 0;
+                
+                for (let s = 0; s < simulacoes; s++) {
+                    let p = patrimonioInicial;
+                    
+                    // Fase Acumulação
+                    for (let y = 1; y <= inputs.anosAcumulacao; y++) {
+                        const variacao = (Math.random() - 0.5) * 0.2; 
+                        const r = taxaRetorno + variacao;
+                        
+                        let taxaSimulada = r;
+                        if (inputs.considerarInflacao) {
+                            taxaSimulada = ((1 + r) / (1 + taxaInflacao)) - 1;
                         }
-                    </div>
-                </div>
 
-                <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${simulation.durouTudo ? 'border-emerald-500' : 'border-red-500'}`}>
-                    <div className="text-sm text-gray-500 uppercase font-semibold">Longevidade do Plano</div>
-                    <div className="text-3xl font-bold text-gray-800 mt-1">
-                        {simulation.durouTudo ? "Vitalício" : `${Math.floor(simulation.mesFimDinheiro / 12)} anos`}
-                    </div>
-                    <div className="text-sm mt-2 text-gray-600">
-                        Período coberto: {simulation.durouTudo ? "100%" : `${((simulation.mesFimDinheiro / (inputs.anosAcumulacao * 12 + inputs.anosUsufruto * 12)) * 100).toFixed(0)}%`} do tempo
-                    </div>
-                    {!simulation.durouTudo && (
-                        <div className="mt-3 text-sm font-medium text-red-600 flex items-center gap-1">
-                            <AlertCircle size={16}/>
-                            Dinheiro acaba na aposentadoria
+                        p = p * (1 + taxaSimulada) + (aporteMensal * 12);
+                    }
+
+                    // Fase Usufruto
+                    for (let y = 1; y <= inputs.anosUsufruto; y++) {
+                        const variacao = (Math.random() - 0.5) * 0.2;
+                        const r = taxaRetorno + variacao;
+                        
+                        let taxaSimulada = r;
+                        if (inputs.considerarInflacao) {
+                            taxaSimulada = ((1 + r) / (1 + taxaInflacao)) - 1;
+                        }
+
+                        p = p * (1 + taxaSimulada) - (saqueMensal * 12);
+
+                        if (p <= 0) {
+                            falhas++;
+                            break;
+                        }
+                    }
+                }
+                const riscoRuina = (falhas / simulacoes) * 100;
+
+                return {
+                    dadosGrafico,
+                    saldoFinalAcumulacao,
+                    montanteNecessario,
+                    sucesso,
+                    durouTudo,
+                    mesFimDinheiro,
+                    saldoFinalTotal: dadosGrafico[dadosGrafico.length - 1].saldo,
+                    sobreviveuCrise,
+                    riscoRuina
+                };
+
+            }, [inputs]);
+
+            const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            return (
+                <div className="min-h-screen pb-10">
+                    
+                    {/* HEADER */}
+                    <div className="bg-emerald-600 text-white py-8 shadow-lg">
+                        <div className="max-w-6xl mx-auto px-4">
+                            <h1 className="text-3xl font-bold flex items-center gap-3">
+                                <Calculator className="h-8 w-8" />
+                                Simulador de Independência Financeira
+                            </h1>
+                            <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
                         </div>
-                    )}
-                    {simulation.durouTudo && (
-                        <div className="mt-3 text-sm font-medium text-emerald-600 flex items-center gap-1">
-                            <ShieldCheck size={16}/>
-                            Herança estimada: {formatMoney(simulation.saldoFinalTotal)}
+                    </div>
+
+                    <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        
+                        {/* LEFT COLUMN: INPUTS */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
+                                    <TrendingUp className="h-5 w-5" />
+                                    Fase de Acumulação
+                                </h2>
+                                <InputGroup 
+                                    label="Patrimônio Atual" 
+                                    icon={DollarSign} 
+                                    value={inputs.patrimonio} 
+                                    onChange={v => updateInput("patrimonio", v)} 
+                                />
+                                <InputGroup 
+                                    label="Aporte Mensal" 
+                                    icon={TrendingUp} 
+                                    value={inputs.aporte} 
+                                    onChange={v => updateInput("aporte", v)} 
+                                />
+                                <InputGroup 
+                                    label="Anos Acumulando" 
+                                    icon={Calendar} 
+                                    type="number"
+                                    prefix=""
+                                    suffix="anos"
+                                    value={inputs.anosAcumulacao} 
+                                    onChange={v => updateInput("anosAcumulacao", v)} 
+                                />
+                            </Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600">
+                                    <TrendingDown className="h-5 w-5" />
+                                    Fase de Usufruto (Aposentadoria)
+                                </h2>
+                                <InputGroup 
+                                    label="Saque Mensal Desejado" 
+                                    icon={DollarSign} 
+                                    value={inputs.saque} 
+                                    onChange={v => updateInput("saque", v)} 
+                                />
+                                <InputGroup 
+                                    label="Duração da Aposentadoria" 
+                                    icon={Calendar} 
+                                    type="number"
+                                    prefix=""
+                                    suffix="anos"
+                                    value={inputs.anosUsufruto} 
+                                    onChange={v => updateInput("anosUsufruto", v)} 
+                                />
+                            </Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
+                                    <ShieldCheck className="h-5 w-5" />
+                                    Premissas
+                                </h2>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <InputGroup 
+                                    label="Retorno Anual" 
+                                    icon={TrendingUp} 
+                                    type="number"
+                                    prefix=""
+                                    suffix="%"
+                                    value={inputs.retornoAno} 
+                                    onChange={v => updateInput("retornoAno", v)} 
+                                    />
+                                    <InputGroup 
+                                    label="Margem Seg." 
+                                    icon={ShieldCheck} 
+                                    type="number"
+                                    prefix=""
+                                    suffix="%"
+                                    value={inputs.margemSeguranca} 
+                                    onChange={v => updateInput("margemSeguranca", v)} 
+                                    />
+                                </div>
+                                
+                                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={inputs.considerarInflacao}
+                                            onChange={(e) => updateInput('considerarInflacao', e.target.checked)}
+                                            className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
+                                    </label>
+                                    
+                                    {inputs.considerarInflacao && (
+                                        <div className="mt-3 animate-fade-in">
+                                            <InputGroup 
+                                                label="Inflação Estimada" 
+                                                icon={TrendingDown} 
+                                                type="number"
+                                                prefix=""
+                                                suffix="%"
+                                                value={inputs.inflacao} 
+                                                onChange={v => updateInput("inflacao", v)} 
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
                         </div>
-                    )}
-                </div>
-            </div>
 
-            {/* CHART */}
-            <Card className="h-96">
-                <h3 className="text-lg font-bold text-slate-700 mb-4">Evolução Patrimonial</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={simulation.dadosGrafico} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis 
-                            dataKey="ano" 
-                            label={{ value: 'Anos', position: 'insideBottomRight', offset: -5 }} 
-                            tick={{fontSize: 12}}
-                        />
-                        <YAxis 
-                            tickFormatter={(value) => 
-                                new Intl.NumberFormat('pt-BR', { notation: "compact", compactDisplay: "short" }).format(value)
-                            }
-                            tick={{fontSize: 12}}
-                            width={60}
-                        />
-                        <Tooltip 
-                            formatter={(value) => [formatMoney(value), "Saldo"]}
-                            labelFormatter={(label) => `Ano ${label}`}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <ReferenceLine x={inputs.anosAcumulacao} stroke="#f97316" strokeDasharray="3 3" label="Aposentadoria" />
-                        <Area 
-                            type="monotone" 
-                            dataKey="saldo" 
-                            stroke="#10b981" 
-                            strokeWidth={3}
-                            fillOpacity={1} 
-                            fill="url(#colorSaldo)" 
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </Card>
+                        {/* RIGHT COLUMN: RESULTS */}
+                        <div className="lg:col-span-8 space-y-6">
 
-            {/* DETAILS TOGGLE */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <button 
-                    onClick={() => setShowDetails(!showDetails)}
-                    className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                    <span className="font-semibold text-gray-700 flex items-center gap-2">
-                        <Calendar className="w-4 h-4"/> Tabela Ano a Ano
-                    </span>
-                    {showDetails ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                </button>
-                
-                {showDetails && (
-                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                        <table className="min-w-full text-sm text-left text-gray-500">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                                <tr>
-                                    <th className="px-6 py-3">Ano</th>
-                                    <th className="px-6 py-3">Fase</th>
-                                    <th className="px-6 py-3 text-right">Saldo Final</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {simulation.dadosGrafico.map((row) => (
-                                    <tr key={row.ano} className="bg-white border-b hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium text-gray-900">{row.ano}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${row.fase === 'Acumulação' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
-                                                {row.fase}
+                            {/* TAB NAVIGATION */}
+                            <div className="flex space-x-2 border-b border-gray-200 mb-4">
+                                <button
+                                    onClick={() => setActiveTab('simulacao')}
+                                    className={`pb-2 px-4 font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Simulação Padrão
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('risco')}
+                                    className={`pb-2 px-4 font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-orange-500 text-orange-700' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    <Activity size={16}/>
+                                    Análise Avançada (Risco & Crise)
+                                </button>
+                            </div>
+                            
+                            {activeTab === 'simulacao' ? (
+                                <>
+                                    {/* KPI GRID */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${results.sucesso ? 'border-emerald-500' : 'border-red-500'}`}>
+                                            <div className="text-sm text-gray-500 uppercase font-semibold">Patrimônio Acumulado</div>
+                                            <div className="text-3xl font-bold text-gray-800 mt-1">
+                                                {formatMoney(results.saldoFinalAcumulacao)}
+                                            </div>
+                                            <div className="text-sm mt-2 text-gray-600">
+                                                Meta com margem: <span className="font-medium">{formatMoney(results.montanteNecessario)}</span>
+                                            </div>
+                                            <div className={`mt-3 text-sm font-medium ${results.sucesso ? 'text-emerald-600' : 'text-red-600'} flex items-center gap-1`}>
+                                                {results.sucesso ? <ShieldCheck size={16}/> : <AlertCircle size={16}/>}
+                                                {results.sucesso 
+                                                    ? `Sobra de ${formatMoney(results.saldoFinalAcumulacao - results.montanteNecessario)}` 
+                                                    : `Faltam ${formatMoney(results.montanteNecessario - results.saldoFinalAcumulacao)}`
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${results.durouTudo ? 'border-emerald-500' : 'border-red-500'}`}>
+                                            <div className="text-sm text-gray-500 uppercase font-semibold">Longevidade do Plano</div>
+                                            <div className="text-3xl font-bold text-gray-800 mt-1">
+                                                {results.durouTudo ? "Vitalício" : `${Math.floor(results.mesFimDinheiro / 12)} anos`}
+                                            </div>
+                                            <div className="text-sm mt-2 text-gray-600">
+                                                Período coberto: {results.durouTudo ? "100%" : `${((results.mesFimDinheiro / (inputs.anosAcumulacao * 12 + inputs.anosUsufruto * 12)) * 100).toFixed(0)}%`} do tempo
+                                            </div>
+                                            {!results.durouTudo && (
+                                                <div className="mt-3 text-sm font-medium text-red-600 flex items-center gap-1">
+                                                    <AlertCircle size={16}/>
+                                                    Dinheiro acaba na aposentadoria
+                                                </div>
+                                            )}
+                                            {results.durouTudo && (
+                                                <div className="mt-3 text-sm font-medium text-emerald-600 flex items-center gap-1">
+                                                    <ShieldCheck size={16}/>
+                                                    Herança estimada: {formatMoney(results.saldoFinalTotal)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* CHART */}
+                                    <Card className="h-96">
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4">Evolução Patrimonial</h3>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={results.dadosGrafico} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis 
+                                                    dataKey="ano" 
+                                                    label={{ value: 'Anos', position: 'insideBottomRight', offset: -5 }} 
+                                                    tick={{fontSize: 12}}
+                                                />
+                                                <YAxis 
+                                                    tickFormatter={(value) => 
+                                                        new Intl.NumberFormat('pt-BR', { notation: "compact", compactDisplay: "short" }).format(value)
+                                                    }
+                                                    tick={{fontSize: 12}}
+                                                    width={60}
+                                                />
+                                                <Tooltip 
+                                                    formatter={(value) => [formatMoney(value), "Saldo"]}
+                                                    labelFormatter={(label) => `Ano ${label}`}
+                                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                />
+                                                <ReferenceLine x={inputs.anosAcumulacao} stroke="#f97316" strokeDasharray="3 3" label="Aposentadoria" />
+                                                <Area 
+                                                    type="monotone" 
+                                                    dataKey="saldo" 
+                                                    stroke="#10b981" 
+                                                    strokeWidth={3}
+                                                    fillOpacity={1} 
+                                                    fill="url(#colorSaldo)" 
+                                                />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </Card>
+
+                                    {/* DETAILS TOGGLE */}
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <button 
+                                            onClick={() => setShowDetails(!showDetails)}
+                                            className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <span className="font-semibold text-gray-700 flex items-center gap-2">
+                                                <Calendar className="w-4 h-4"/> Tabela Ano a Ano
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right font-mono text-gray-900">
-                                            {formatMoney(row.saldo)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+                                            {showDetails ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                                        </button>
+                                        
+                                        {showDetails && (
+                                            <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                                                <table className="min-w-full text-sm text-left text-gray-500">
+                                                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                                                        <tr>
+                                                            <th className="px-6 py-3">Ano</th>
+                                                            <th className="px-6 py-3">Fase</th>
+                                                            <th className="px-6 py-3 text-right">Saldo Final</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {results.dadosGrafico.map((row) => (
+                                                            <tr key={row.ano} className="bg-white border-b hover:bg-gray-50">
+                                                                <td className="px-6 py-4 font-medium text-gray-900">{row.ano}</td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${row.fase === 'Acumulação' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
+                                                                        {row.fase}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right font-mono text-gray-900">
+                                                                    {formatMoney(row.saldo)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6 animate-fade-in">
+                                    {/* RISK CARD */}
+                                    <Card className="border-l-4 border-l-purple-500">
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                                    <Activity className="text-purple-600" />
+                                                    Risco de Ruína (Monte Carlo)
+                                                </h3>
+                                                <p className="text-sm text-gray-600 mt-1 max-w-lg">
+                                                    Simulamos 500 cenários possíveis adicionando volatilidade aleatória (+/- 10%) ao seu retorno anual.
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`text-4xl font-bold ${results.riscoRuina < 5 ? 'text-emerald-600' : results.riscoRuina < 15 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                    {results.riscoRuina.toFixed(1)}%
+                                                </span>
+                                                <p className="text-xs text-gray-500 font-medium uppercase mt-1">Probabilidade de Falha</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-4 bg-gray-100 h-3 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full transition-all duration-500 ${results.riscoRuina < 5 ? 'bg-emerald-500' : results.riscoRuina < 15 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                style={{ width: `${Math.min(results.riscoRuina, 100)}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2 text-right">
+                                            {results.riscoRuina < 5 ? "Risco Baixo ✅" : results.riscoRuina < 15 ? "Risco Moderado ⚠️" : "Risco Alto 🚨"}
+                                        </p>
+                                    </Card>
 
-        </div>
-      </div>
-    </div>
-  );
-}
+                                    {/* CRISIS CARD */}
+                                    <Card className={`border-l-4 ${results.sobreviveuCrise ? 'border-l-blue-500' : 'border-l-red-500'}`}>
+                                        <div className="flex items-start gap-4">
+                                            <div className={`p-3 rounded-full ${results.sobreviveuCrise ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+                                                {results.sobreviveuCrise ? <ShieldCheck size={24} /> : <Zap size={24} />}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-800">
+                                                    Simulação de Crise Severa
+                                                </h3>
+                                                <p className="text-sm text-gray-600 mt-1">
+                                                    E se o mercado cair <strong>30%</strong> exatamente no dia que você se aposentar?
+                                                </p>
+                                                
+                                                <div className={`mt-4 p-4 rounded-lg border ${results.sobreviveuCrise ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+                                                    <p className={`font-semibold ${results.sobreviveuCrise ? 'text-blue-800' : 'text-red-800'}`}>
+                                                        {results.sobreviveuCrise 
+                                                            ? "✅ O plano sobrevive." 
+                                                            : "❌ O dinheiro acaba antes do fim."}
+                                                    </p>
+                                                    <p className="text-sm mt-1 opacity-80">
+                                                        {results.sobreviveuCrise 
+                                                            ? "Seu patrimônio é robusto o suficiente para suportar uma queda brusca inicial." 
+                                                            : "Uma crise severa no início do usufruto quebraria seu planejamento."}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Card>
+
+                                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex gap-3 text-sm text-yellow-800">
+                                        <AlertTriangle className="flex-shrink-0" size={20} />
+                                        <p>
+                                            <strong>Nota:</strong> Estas são simulações matemáticas baseadas em padrões estatísticos. O mercado real pode se comportar de maneira imprevisível. Use estes dados apenas como referência.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- INICIALIZAÇÃO ---
+        const root = createRoot(document.getElementById('root'));
+        root.render(<FinancialPlanner />);
+    </script>
+</body>
+</html>
