@@ -77,7 +77,10 @@
             const displayValue = () => {
                 if (type === "currency") {
                     if (!value) return "";
-                    return (parseInt(value) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+                    // Garante que value seja tratado como string de centavos ou numero
+                    const numVal = parseInt(value);
+                    if (isNaN(numVal)) return "";
+                    return (numVal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
                 }
                 return value;
             };
@@ -138,17 +141,30 @@
             const [showDetails, setShowDetails] = useState(false);
             const [activeTab, setActiveTab] = useState('simulacao'); // 'simulacao' | 'risco' | 'projetos'
 
-            // Load from local storage
+            // --- LOAD & MIGRAÇÃO DE DADOS ---
             useEffect(() => {
-                const saved = localStorage.getItem('financial_plan_v5');
+                // Tenta carregar a versão atual
+                let saved = localStorage.getItem('financial_plan_v5');
+                
+                // Se não encontrar, tenta migrar de versões anteriores para não perder dados
+                if (!saved) {
+                    console.log("Migrando dados de versão anterior...");
+                    saved = localStorage.getItem('financial_plan_v4') || 
+                            localStorage.getItem('financial_plan_v3') || 
+                            localStorage.getItem('financial_plan_v2') ||
+                            localStorage.getItem('plano'); // Versão original HTML puro
+                }
+
                 if (saved) {
                     try {
-                        setInputs(prev => ({ ...prev, ...JSON.parse(saved) }));
-                    } catch (e) { console.error("Error loading save", e); }
+                        const parsed = JSON.parse(saved);
+                        // Mescla o que foi salvo com o estado inicial (para garantir que novos campos tenham valor default)
+                        setInputs(prev => ({ ...prev, ...parsed }));
+                    } catch (e) { console.error("Erro ao carregar dados salvos", e); }
                 }
             }, []);
 
-            // Save to local storage
+            // Save to local storage (Sempre salva na versão mais nova)
             useEffect(() => {
                 localStorage.setItem('financial_plan_v5', JSON.stringify(inputs));
             }, [inputs]);
@@ -478,6 +494,39 @@
                                     value={inputs.margemSeguranca} 
                                     onChange={v => updateInput("margemSeguranca", v)} 
                                     />
+                                </div>
+                                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={inputs.considerarInflacao}
+                                            onChange={(e) => updateInput('considerarInflacao', e.target.checked)}
+                                            className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
+                                    </label>
+                                    
+                                    {inputs.considerarInflacao ? (
+                                        <div className="mt-3 animate-fade-in">
+                                            <InputGroup 
+                                                label="Inflação Estimada" 
+                                                icon={TrendingDown} 
+                                                type="number"
+                                                prefix=""
+                                                suffix="%"
+                                                value={inputs.inflacao} 
+                                                onChange={v => updateInput("inflacao", v)} 
+                                            />
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                Cálculo usando Taxa Nominal - Inflação.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2 text-xs text-slate-500 space-y-1">
+                                            <p className="font-semibold text-slate-700">💡 Modo Juros Reais (Padrão)</p>
+                                            <p>Ao deixar desmarcado, o simulador mantém o <strong>Poder de Compra</strong>.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
                         </div>
