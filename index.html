@@ -52,8 +52,8 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins } from 'lucide-react';
+        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter } from 'recharts';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -135,42 +135,37 @@
                 patrimonioImobilizado: "0", 
                 patrimonioRestrito: "0",
                 
-                // Aportes Extras (NOVO)
-                aportesExtras: [], // Array de objetos { id, nome, tipo, valor, ano }
+                // Aportes Extras
+                aportesExtras: [], 
 
                 // Projetos
                 projetoValor: "50000000",
                 projetoAno: 5,
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
-                projetoPrazo: 30
+                projetoPrazo: 30,
+
+                // Sensibilidade (Novo)
+                sensAporteExtra: "50000", // R$ 500
+                sensTaxaExtra: 1.0 // 1%
             });
 
-            // State local para o formulário de novo aporte
-            const [novoAporte, setNovoAporte] = useState({
-                nome: "",
-                tipo: "recorrente", // recorrente | unico
-                valor: "",
-                ano: ""
-            });
-
-            const [showDetails, setShowDetails] = useState(false);
+            const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
             const [activeTab, setActiveTab] = useState('simulacao'); 
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v6'); // Bump version
+                let saved = localStorage.getItem('financial_plan_v7'); // Bump version
                 
                 if (!saved) {
-                    // Tenta migrar da v5 ou anteriores
-                    saved = localStorage.getItem('financial_plan_v5') || 
+                    saved = localStorage.getItem('financial_plan_v6') || 
+                            localStorage.getItem('financial_plan_v5') || 
                             localStorage.getItem('financial_plan_v4');
                 }
 
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        // Garante que aportesExtras seja um array se vier de versão antiga
                         if (!parsed.aportesExtras) parsed.aportesExtras = [];
                         setInputs(prev => ({ ...prev, ...parsed }));
                     } catch (e) { console.error("Erro ao carregar", e); }
@@ -178,33 +173,21 @@
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('financial_plan_v6', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v7', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
                 setInputs(prev => ({ ...prev, [field]: value }));
             };
 
-            // Handlers para Aportes Extras
             const adicionarAporteExtra = () => {
                 if (!novoAporte.valor || (novoAporte.tipo === 'unico' && !novoAporte.ano)) return;
-                
-                setInputs(prev => ({
-                    ...prev,
-                    aportesExtras: [
-                        ...prev.aportesExtras,
-                        { ...novoAporte, id: Date.now() } // ID único
-                    ]
-                }));
-                // Reset form
+                setInputs(prev => ({ ...prev, aportesExtras: [...prev.aportesExtras, { ...novoAporte, id: Date.now() }] }));
                 setNovoAporte({ nome: "", tipo: "recorrente", valor: "", ano: "" });
             };
 
             const removerAporteExtra = (id) => {
-                setInputs(prev => ({
-                    ...prev,
-                    aportesExtras: prev.aportesExtras.filter(a => a.id !== id)
-                }));
+                setInputs(prev => ({ ...prev, aportesExtras: prev.aportesExtras.filter(a => a.id !== id) }));
             };
 
             const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -220,6 +203,7 @@
                 const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
                 const taxaInflacao = parseFloat(inputs.inflacao) / 100;
                 
+                // Taxa Real Base
                 let taxaMensalInv;
                 if (inputs.considerarInflacao) {
                     const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
@@ -232,64 +216,70 @@
                 const mesesUsufruto = inputs.anosUsufruto * 12;
                 const totalMeses = mesesAcumulacao + mesesUsufruto;
 
-                // Helper para calcular aporte extra do mês corrente
+                const montanteNecessario = (taxaMensalInv > 0 
+                    ? saqueMensal * (1 - Math.pow(1 + taxaMensalInv, -mesesUsufruto)) / taxaMensalInv 
+                    : saqueMensal * mesesUsufruto) * (1 + inputs.margemSeguranca/100);
+
+                // Helper Aportes Extras
                 const getExtraInflow = (m, isAcc) => {
                     let inflow = 0;
                     inputs.aportesExtras.forEach(aporte => {
                         const valor = parseInt(aporte.valor || "0") / 100;
                         if (aporte.tipo === 'recorrente') {
-                            // Aplica anualmente (mês 12 de cada ano) apenas na fase de acumulação
-                            if (isAcc && m % 12 === 0) {
-                                inflow += valor;
-                            }
+                            if (isAcc && m % 12 === 0) inflow += valor;
                         } else if (aporte.tipo === 'unico') {
-                            // Aplica no mês 1 do ano escolhido
                             const targetMonth = (parseInt(aporte.ano) - 1) * 12 + 1;
-                            if (m === targetMonth) {
-                                inflow += valor;
-                            }
+                            if (m === targetMonth) inflow += valor;
                         }
                     });
                     return inflow;
                 };
 
-                const runSimulation = (extraCostFn = () => 0, extraWithdrawFn = () => 0) => {
-                    let saldoLiq = patrimonioLiq;
+                // --- Função Genérica de Simulação (Para Risco, Projetos e Sensibilidade) ---
+                const runSimulation = (params = {}) => {
+                    const {
+                        pInicial = patrimonioLiq,
+                        apMensal = aporteMensal,
+                        txMensal = taxaMensalInv,
+                        extraCostFn = () => 0,
+                        extraWithdrawFn = () => 0
+                    } = params;
+
+                    let saldoLiq = pInicial;
                     let saldoRest = restrito;
                     let mesFim = null;
                     let saldoFinal = 0;
+                    let atingiuLiberdadeEm = null; // Mês que atingiu o montante necessário
                     
+                    const data = [];
+
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
+                        const ano = Math.floor(m / 12);
                         
-                        // Rendimento
-                        saldoLiq = saldoLiq * (1 + taxaMensalInv);
-                        if (isAcc) saldoRest = saldoRest * (1 + taxaMensalInv);
+                        saldoLiq = saldoLiq * (1 + txMensal);
+                        if (isAcc) saldoRest = saldoRest * (1 + txMensal);
 
-                        // Fluxo Normal
                         if (isAcc) {
-                            saldoLiq += aporteMensal;
-                            // Aportes Extras (13º, Bônus, Vendas)
+                            saldoLiq += apMensal;
                             saldoLiq += getExtraInflow(m, true);
                         } else {
                             if (m === mesesAcumulacao + 1) { 
                                 saldoLiq += saldoRest; 
                                 saldoRest = 0; 
                             }
-                            // Na aposentadoria também pode ter entrada extra?
-                            // Por enquanto a lógica acima 'getExtraInflow' trava recorrente em isAcc=true.
-                            // Mas se for 'unico' e o ano for > anosAcumulacao, deveria entrar?
-                            // Vamos permitir 'unico' em qualquer momento:
-                            saldoLiq += getExtraInflow(m, false); // Passando false para travar recorrentes, mas liberar unicos
-                            
+                            saldoLiq += getExtraInflow(m, false); 
                             saldoLiq -= saqueMensal;
                         }
 
-                        // Eventos de Projetos
                         saldoLiq -= extraCostFn(m); 
                         saldoLiq -= extraWithdrawFn(m); 
 
-                        // Falência
+                        // Checa se atingiu liberdade financeira (liquidez + restrito)
+                        if (!atingiuLiberdadeEm && (saldoLiq + (isAcc?saldoRest:0)) >= montanteNecessario) {
+                            atingiuLiberdadeEm = m;
+                        }
+
                         if (saldoLiq < 0) {
                             if (!isAcc) {
                                 if (mesFim === null) mesFim = m;
@@ -298,85 +288,97 @@
                         }
 
                         if (m === totalMeses) saldoFinal = saldoLiq;
-                    }
-                    return { saldoFinal, mesFim };
-                };
 
-                // Simulação Base
-                let baseData = [];
-                let saldoLiq = patrimonioLiq;
-                let saldoRest = restrito;
-                let mesFimBase = null;
-
-                for (let m = 1; m <= totalMeses; m++) {
-                    const isAcc = m <= mesesAcumulacao;
-                    const ano = Math.floor(m / 12);
-                    
-                    saldoLiq = saldoLiq * (1 + taxaMensalInv);
-                    if (isAcc) saldoRest = saldoRest * (1 + taxaMensalInv);
-
-                    if (isAcc) {
-                        saldoLiq += aporteMensal;
-                        // Soma extras
-                        saldoLiq += getExtraInflow(m, true);
-                    } else {
-                        if (m === mesesAcumulacao + 1) { saldoLiq += saldoRest; saldoRest = 0; }
-                        // Soma extras pontuais na aposentadoria (ex: venda de imóvel tardia)
-                        saldoLiq += getExtraInflow(m, false); 
-                        saldoLiq -= saqueMensal;
-                    }
-
-                    if (saldoLiq < 0) {
-                        if (!isAcc) {
-                            if (mesFimBase === null) mesFimBase = m;
-                            saldoLiq = 0;
+                        if (m % 12 === 0 || m === totalMeses) {
+                            data.push({
+                                ano, mes: m,
+                                saldoLiquido: Math.round(saldoLiq),
+                                saldoRestrito: Math.round(isAcc ? saldoRest : 0),
+                                saldoImobilizado: Math.round(imobilizado),
+                                saldoTotal: Math.round(saldoLiq + (isAcc ? saldoRest : 0) + imobilizado),
+                                fase: isAcc ? "Acumulação" : "Usufruto"
+                            });
                         }
                     }
+                    return { saldoFinal, mesFim, data, atingiuLiberdadeEm };
+                };
 
-                    if (m % 12 === 0 || m === totalMeses) {
-                        baseData.push({
-                            ano, mes: m,
-                            saldoLiquido: Math.round(saldoLiq),
-                            saldoRestrito: Math.round(isAcc ? saldoRest : 0),
-                            saldoImobilizado: Math.round(imobilizado),
-                            saldoTotal: Math.round(saldoLiq + (isAcc ? saldoRest : 0) + imobilizado),
-                            fase: isAcc ? "Acumulação" : "Usufruto"
-                        });
-                    }
+                // 1. Simulação Base
+                const simBase = runSimulation();
+                
+                // 2. Marcos
+                let marcos = [
+                    { valor: 100000, nome: "100 Mil", atingidoEm: null },
+                    { valor: 500000, nome: "Meio Milhão", atingidoEm: null },
+                    { valor: 1000000, nome: "1º Milhão", atingidoEm: null, especial: true },
+                    { valor: 2000000, nome: "2 Milhões", atingidoEm: null },
+                    { valor: 5000000, nome: "5 Milhões", atingidoEm: null },
+                    { valor: montanteNecessario, nome: "Liberdade Financeira", atingidoEm: null, alvo: true }
+                ].sort((a,b) => a.valor - b.valor);
+
+                // Recalcula marcos baseado nos dados da simulação base
+                simBase.data.forEach(ponto => {
+                    const total = ponto.saldoLiquido + ponto.saldoRestrito;
+                    marcos.forEach(marco => {
+                        if (!marco.atingidoEm && total >= marco.valor) {
+                            marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes };
+                        }
+                    });
+                });
+
+                // 3. Sensibilidade (Aporte vs Taxa)
+                // Cenário A: Aumento Aporte
+                const sensAporteVal = parseInt(inputs.sensAporteExtra || "0") / 100;
+                const simSensAporte = runSimulation({ apMensal: aporteMensal + sensAporteVal });
+                
+                // Cenário B: Aumento Taxa
+                // Calcula nova taxa mensal
+                const sensTaxaVal = parseFloat(inputs.sensTaxaExtra || "0") / 100;
+                // Adiciona a taxa extra à taxa anual base, depois converte
+                let novaTaxaAnual = inputs.retornoAno/100 + sensTaxaVal;
+                let novaTaxaMensal;
+                if (inputs.considerarInflacao) {
+                    const tr = ((1 + novaTaxaAnual) / (1 + taxaInflacao)) - 1;
+                    novaTaxaMensal = Math.pow(1 + tr, 1/12) - 1;
+                } else {
+                    novaTaxaMensal = Math.pow(1 + novaTaxaAnual, 1/12) - 1;
+                }
+                const simSensTaxa = runSimulation({ txMensal: novaTaxaMensal });
+
+                // 4. Raio-X Inflação
+                // Projeção de custo de vida nominal
+                const inflacaoData = [];
+                for(let y=0; y<=30; y+=5) {
+                    const fator = Math.pow(1 + taxaInflacao, y);
+                    inflacaoData.push({
+                        ano: y,
+                        custo: Math.round(saqueMensal * fator),
+                        perdaPoder: Math.round(100 - (100/fator))
+                    });
                 }
 
-                const montanteNecessario = (taxaMensalInv > 0 
-                    ? saqueMensal * (1 - Math.pow(1 + taxaMensalInv, -mesesUsufruto)) / taxaMensalInv 
-                    : saqueMensal * mesesUsufruto) * (1 + inputs.margemSeguranca/100);
-                
-                const saldoFinalAcc = baseData.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0;
-
-                // Projetos
+                // 5. Projetos (Mantendo lógica anterior)
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
                 const projMes = inputs.projetoAno * 12;
-                
                 const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
                 const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
                 const projPrazoMeses = inputs.projetoPrazo * 12;
-                
                 const valorFinanciado = Math.max(0, projValor - projEntrada);
                 const parcela = valorFinanciado > 0 && taxaFinMensal > 0
                     ? valorFinanciado * (taxaFinMensal * Math.pow(1 + taxaFinMensal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensal, projPrazoMeses) - 1)
                     : valorFinanciado / projPrazoMeses;
 
-                const simAvista = runSimulation(
-                    () => 0, 
-                    (m) => m === projMes ? projValor : 0
-                );
-
-                const simFinanc = runSimulation(
-                    (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
-                    (m) => m === projMes ? projEntrada : 0
-                );
+                const simAvista = runSimulation({
+                    extraWithdrawFn: (m) => m === projMes ? projValor : 0
+                });
+                const simFinanc = runSimulation({
+                    extraCostFn: (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
+                    extraWithdrawFn: (m) => m === projMes ? projEntrada : 0
+                });
 
                 const comparativoProj = [
-                    { nome: "Cenário Atual", patrimonioFinal: baseData[baseData.length-1].saldoLiquido, duracao: mesFimBase ? mesFimBase/12 : (totalMeses/12) },
+                    { nome: "Cenário Atual", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12) },
                     { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12) },
                     { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12) }
                 ];
@@ -384,12 +386,11 @@
                 let melhorEstrat = "Manter Atual";
                 const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
                 const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
-                
                 if (finalAvista > finalFinanc && finalAvista > 0) melhorEstrat = "À Vista";
                 else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
                 else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
 
-                // Monte Carlo (Simplificado)
+                // 6. Risco (Monte Carlo Simplificado)
                 const simulacoes = 200;
                 let falhas = 0;
                 for (let s = 0; s < simulacoes; s++) {
@@ -404,9 +405,6 @@
                         p = p * (1+tSim);
                         if(isAcc) {
                             p += (aporteMensal * 12);
-                            
-                            // Adiciona extras na simulação de risco também
-                            // Aproximação anual simples
                             let extraAnual = 0;
                             inputs.aportesExtras.forEach(ap => {
                                 const v = parseInt(ap.valor)/100;
@@ -414,17 +412,13 @@
                                 else if(ap.tipo === 'unico' && parseInt(ap.ano) === y) p += v;
                             });
                             p += extraAnual;
-
                             pRest = pRest * (1+tSim);
                         } else {
                             if(y === inputs.anosAcumulacao + 1) p += pRest;
-                            
-                            // Extras pontuais na aposentadoria
                             inputs.aportesExtras.forEach(ap => {
                                 const v = parseInt(ap.valor)/100;
                                 if(ap.tipo === 'unico' && parseInt(ap.ano) === y) p += v;
                             });
-
                             p -= (saqueMensal * 12);
                         }
                         if(p <= 0) { falhas++; break; }
@@ -432,19 +426,42 @@
                 }
 
                 return {
-                    baseData,
-                    saldoFinalAcumulacao: saldoFinalAcc,
+                    baseData: simBase.data,
+                    saldoFinalAcumulacao: simBase.data.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0,
                     montanteNecessario,
-                    sucesso: saldoFinalAcc >= montanteNecessario,
-                    durouTudo: mesFimBase === null,
-                    mesFimDinheiro: mesFimBase,
-                    saldoFinalTotal: baseData[baseData.length - 1].saldoTotal,
+                    sucesso: !simBase.mesFim && (simBase.saldoFinal > 0),
+                    durouTudo: simBase.mesFim === null,
+                    mesFimDinheiro: simBase.mesFim,
+                    saldoFinalTotal: simBase.saldoFinal,
                     imobilizado,
                     riscoRuina: (falhas / simulacoes) * 100,
-                    simAvista, simFinanc, comparativoProj, parcela, melhorEstrat
+                    simAvista, simFinanc, comparativoProj, parcela, melhorEstrat,
+                    marcos,
+                    // Dados novos
+                    simSensAporte, simSensTaxa, inflacaoData, 
+                    tempoLiberdadeBase: simBase.atingiuLiberdadeEm,
+                    tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm,
+                    tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm
                 };
 
             }, [inputs]);
+
+            // Formatadores
+            const formatTempo = (m) => {
+                if (!m) return "Nunca";
+                const anos = Math.floor(m/12);
+                const meses = m%12;
+                if (anos === 0) return `${meses}m`;
+                return `${anos}a ${meses}m`;
+            };
+
+            const calcEconomiaTempo = (base, novo) => {
+                if (!base) return null; // Nunca atingiu na base
+                if (!novo) return "Não atinge";
+                const diff = base - novo;
+                if (diff <= 0) return "Mesmo tempo";
+                return `${formatTempo(diff)} a menos`;
+            };
 
             return (
                 <div className="min-h-screen pb-10">
@@ -474,15 +491,11 @@
                                 <InputGroup label="Anos Acumulando" icon={Calendar} type="number" suffix="anos" value={inputs.anosAcumulacao} onChange={v => updateInput("anosAcumulacao", v)} />
                             </Card>
 
-                            {/* APORTES EXTRAS (NOVO) */}
                             <Card>
                                 <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700">
                                     <Coins className="h-5 w-5" />
                                     Aportes Extras & Variáveis
                                 </h2>
-                                <p className="text-xs text-slate-500 mb-4">Adicione 13º, Bônus, PLR ou vendas de bens.</p>
-
-                                {/* Lista de Aportes Existentes */}
                                 <div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">
                                     {inputs.aportesExtras.length === 0 && <p className="text-sm text-center text-gray-400 py-2 italic">Nenhum aporte extra adicionado.</p>}
                                     {inputs.aportesExtras.map(aporte => (
@@ -499,43 +512,19 @@
                                         </div>
                                     ))}
                                 </div>
-
-                                {/* Formulário de Adição */}
                                 <div className="border-t border-gray-100 pt-3">
                                     <div className="grid grid-cols-2 gap-2 mb-2">
-                                        <input 
-                                            placeholder="Nome (Ex: PLR)" 
-                                            className="text-sm border-gray-300 rounded p-1.5 w-full"
-                                            value={novoAporte.nome}
-                                            onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})}
-                                        />
-                                        <select 
-                                            className="text-sm border-gray-300 rounded p-1.5 w-full"
-                                            value={novoAporte.tipo}
-                                            onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}
-                                        >
+                                        <input placeholder="Nome" className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.nome} onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})} />
+                                        <select className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.tipo} onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}>
                                             <option value="recorrente">Recorrente (Anual)</option>
                                             <option value="unico">Pontual (Único)</option>
                                         </select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 mb-2">
                                         <InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />
-                                        {novoAporte.tipo === 'unico' && (
-                                            <input 
-                                                type="number" 
-                                                placeholder="Ano (Ex: 5)" 
-                                                className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" // match InputGroup height
-                                                value={novoAporte.ano}
-                                                onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})}
-                                            />
-                                        )}
+                                        {novoAporte.tipo === 'unico' && <input type="number" placeholder="Ano" className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" value={novoAporte.ano} onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})} />}
                                     </div>
-                                    <button 
-                                        onClick={adicionarAporteExtra}
-                                        className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"
-                                    >
-                                        <Plus size={16} /> Adicionar Aporte
-                                    </button>
+                                    <button onClick={adicionarAporteExtra} className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"><Plus size={16} /> Adicionar</button>
                                 </div>
                             </Card>
 
@@ -590,10 +579,13 @@
                         <div className="lg:col-span-8 space-y-6">
 
                             {/* TAB NAV */}
-                            <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto">
+                            <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto pb-1">
                                 <button onClick={() => setActiveTab('simulacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Simulação Padrão</button>
-                                <button onClick={() => setActiveTab('projetos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'projetos' ? 'border-b-2 border-blue-500 text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}><Briefcase size={16}/> Projetos de Vida (Casa/Sonhos)</button>
-                                <button onClick={() => setActiveTab('risco')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}><Activity size={16}/> Análise Avançada</button>
+                                <button onClick={() => setActiveTab('marcos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'marcos' ? 'border-b-2 border-amber-500 text-amber-700' : 'text-gray-500 hover:text-gray-700'}`}><Flag size={16}/> Marcos</button>
+                                <button onClick={() => setActiveTab('projetos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'projetos' ? 'border-b-2 border-blue-500 text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}><Briefcase size={16}/> Projetos</button>
+                                <button onClick={() => setActiveTab('sensibilidade')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'sensibilidade' ? 'border-b-2 border-pink-500 text-pink-700' : 'text-gray-500 hover:text-gray-700'}`}><Scale size={16}/> Sensibilidade</button>
+                                <button onClick={() => setActiveTab('inflacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'inflacao' ? 'border-b-2 border-gray-500 text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}><Banknote size={16}/> Inflação</button>
+                                <button onClick={() => setActiveTab('risco')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}><Activity size={16}/> Risco</button>
                             </div>
                             
                             {activeTab === 'simulacao' && (
@@ -640,11 +632,73 @@
                                 </>
                             )}
 
+                            {activeTab === 'marcos' && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Trophy size={24} /></div>
+                                                <h3 className="text-lg font-bold text-amber-900">O Primeiro Milhão</h3>
+                                            </div>
+                                            {results.marcos.find(m => m.nome === "1º Milhão" && m.atingidoEm) ? (
+                                                <div>
+                                                    <p className="text-3xl font-bold text-amber-800 mt-2">{formatTempo(results.marcos.find(m => m.nome === "1º Milhão").atingidoEm.mes)}</p>
+                                                    <p className="text-sm text-amber-700 mt-1">Você atingirá essa marca no ano {results.marcos.find(m => m.nome === "1º Milhão").atingidoEm.ano}.</p>
+                                                </div>
+                                            ) : (
+                                                <p className="text-amber-800 font-medium mt-2">Não atingido na fase de acumulação.</p>
+                                            )}
+                                        </Card>
+
+                                        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600"><Target size={24} /></div>
+                                                <h3 className="text-lg font-bold text-emerald-900">Liberdade Financeira</h3>
+                                            </div>
+                                            <div className="mt-2">
+                                                <div className="flex justify-between text-xs text-emerald-700 font-medium mb-1">
+                                                    <span>Progresso</span>
+                                                    <span>{Math.min(100, (results.saldoFinalAcumulacao / results.montanteNecessario) * 100).toFixed(0)}%</span>
+                                                </div>
+                                                <div className="w-full bg-emerald-200 rounded-full h-2.5">
+                                                    <div className="bg-emerald-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (results.saldoFinalAcumulacao / results.montanteNecessario) * 100)}%` }}></div>
+                                                </div>
+                                                <p className="text-sm text-emerald-700 mt-2">Meta: <strong>{formatMoney(results.montanteNecessario)}</strong></p>
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <Card>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><Flag className="w-5 h-5"/> Linha do Tempo da Riqueza</h3>
+                                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6">
+                                            {results.marcos.map((marco, idx) => (
+                                                <div key={idx} className={`ml-6 relative ${!marco.atingidoEm ? 'opacity-50' : ''}`}>
+                                                    <span className={`absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white ${marco.atingidoEm ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                        <div>
+                                                            <h4 className={`font-bold ${marco.especial ? 'text-amber-600' : marco.alvo ? 'text-emerald-600' : 'text-slate-700'}`}>{marco.nome}</h4>
+                                                            <p className="text-sm text-slate-500">{formatMoney(marco.valor)}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {marco.atingidoEm ? (
+                                                                <>
+                                                                    <div className="text-lg font-bold text-slate-800">{formatTempo(marco.atingidoEm.mes)}</div>
+                                                                    <div className="text-xs text-slate-500">Ano {marco.atingidoEm.ano}</div>
+                                                                </>
+                                                            ) : <span className="text-xs font-medium px-2 py-1 bg-slate-200 rounded text-slate-500">Pendente</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
+
                             {activeTab === 'projetos' && (
                                 <div className="space-y-6 animate-fade-in">
                                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl">
                                         <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Grande Compra (Imóvel/Sonho)</h3>
-                                        <p className="text-sm text-blue-700 mb-4">Veja o impacto de comprar um bem antes da aposentadoria. Compare pagar à vista (descapitalizando) ou financiar.</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <InputGroup label="Valor do Bem" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                                             <InputGroup label="Comprar em (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} />
@@ -658,9 +712,7 @@
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {results.comparativoProj.map((cenario, idx) => (
                                             <Card key={idx} className={`border-t-4 ${idx===0 ? 'border-gray-400' : idx===1 ? 'border-emerald-500' : 'border-blue-500'} relative overflow-hidden`}>
-                                                {cenario.nome.includes(results.melhorEstrat) && idx > 0 && (
-                                                    <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR MATEMATICAMENTE</div>
-                                                )}
+                                                {cenario.nome.includes(results.melhorEstrat) && idx > 0 && <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR MATEMATICAMENTE</div>}
                                                 <h4 className="font-bold text-gray-700 text-lg mb-2">{cenario.nome}</h4>
                                                 <div className="text-sm text-gray-500">Patrimônio Final (Herança)</div>
                                                 <div className={`text-xl font-bold ${cenario.patrimonioFinal > 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatMoney(cenario.patrimonioFinal)}</div>
@@ -685,11 +737,87 @@
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </Card>
+                                </div>
+                            )}
 
+                            {/* === TAB SENSIBILIDADE (NOVO) === */}
+                            {activeTab === 'sensibilidade' && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <div className="bg-pink-50 border border-pink-200 p-4 rounded-xl">
+                                        <h3 className="text-lg font-bold text-pink-900 mb-2 flex items-center gap-2"><Scale className="w-5 h-5"/> Aporte vs. Taxa</h3>
+                                        <p className="text-sm text-pink-700 mb-4">Descubra o que acelera mais sua liberdade: economizar mais (Aporte) ou investir melhor (Rentabilidade)?</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <InputGroup label="Simular Aumento de Aporte" icon={Plus} value={inputs.sensAporteExtra} onChange={v => updateInput("sensAporteExtra", v)} />
+                                            <InputGroup label="Simular Aumento na Taxa Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.sensTaxaExtra} onChange={v => updateInput("sensTaxaExtra", v)} />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <Card className="border-t-4 border-gray-400">
+                                            <div className="text-sm text-gray-500 font-semibold uppercase">Cenário Atual</div>
+                                            <div className="text-2xl font-bold text-gray-800 mt-2">{formatTempo(results.tempoLiberdadeBase)}</div>
+                                            <div className="text-xs text-gray-500 mt-1">Para atingir liberdade</div>
+                                        </Card>
+
+                                        <Card className="border-t-4 border-pink-500 relative">
+                                            <div className="absolute top-2 right-2 bg-pink-100 text-pink-800 text-xs px-2 py-1 rounded">+ {formatMoney(parseInt(inputs.sensAporteExtra)/100)}/mês</div>
+                                            <div className="text-sm text-gray-500 font-semibold uppercase">Com Aporte Extra</div>
+                                            <div className="text-2xl font-bold text-pink-700 mt-2">{formatTempo(results.tempoLiberdadeAporte)}</div>
+                                            <div className="text-xs text-green-600 font-bold mt-1">
+                                                {calcEconomiaTempo(results.tempoLiberdadeBase, results.tempoLiberdadeAporte)}
+                                            </div>
+                                        </Card>
+
+                                        <Card className="border-t-4 border-purple-500 relative">
+                                            <div className="absolute top-2 right-2 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">+ {inputs.sensTaxaExtra}% a.a.</div>
+                                            <div className="text-sm text-gray-500 font-semibold uppercase">Com Taxa Maior</div>
+                                            <div className="text-2xl font-bold text-purple-700 mt-2">{formatTempo(results.tempoLiberdadeTaxa)}</div>
+                                            <div className="text-xs text-green-600 font-bold mt-1">
+                                                {calcEconomiaTempo(results.tempoLiberdadeBase, results.tempoLiberdadeTaxa)}
+                                            </div>
+                                        </Card>
+                                    </div>
+                                    
                                     <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2">
                                         <Info size={20} className="shrink-0"/>
-                                        <p><strong>Por que o saldo cresceu tanto?</strong><br/>O "Patrimônio Final" é o valor estimado <strong>após {inputs.anosUsufruto} anos de aposentadoria</strong> (Legado/Herança). Se o rendimento dos investimentos supera seus saques mensais, a diferença (sobra) continua rendendo juros compostos por décadas.</p>
+                                        <p><strong>Dica:</strong> No início da jornada, o <strong>Aporte</strong> costuma ter mais impacto. À medida que o patrimônio cresce, a <strong>Taxa</strong> de retorno se torna o fator dominante.</p>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* === TAB INFLAÇÃO (NOVO) === */}
+                            {activeTab === 'inflacao' && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <Card>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            <Banknote className="w-5 h-5"/> Raio-X da Inflação
+                                        </h3>
+                                        <p className="text-sm text-slate-600 mb-6">
+                                            Considerando uma inflação média de <strong>{inputs.inflacao}% ao ano</strong>, veja de quanto dinheiro você precisará no futuro para manter o mesmo padrão de vida que <strong>{formatMoney(parseInt(inputs.saque)/100)}</strong> compram hoje.
+                                        </p>
+
+                                        <div className="h-80">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={results.inflacaoData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="ano" tickFormatter={(val) => `Daqui ${val} anos`} tick={{fontSize: 12}} />
+                                                    <YAxis tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} tick={{fontSize: 12}} />
+                                                    <Tooltip formatter={(value) => formatMoney(value)} labelFormatter={(label) => `Daqui a ${label} anos`} />
+                                                    <Bar dataKey="custo" name="Custo de Vida Nominal" fill="#64748b" radius={[4, 4, 0, 0]} label={{ position: 'top', formatter: (v) => formatMoney(v), fontSize: 10, fill: '#64748b' }} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+
+                                        <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+                                            {results.inflacaoData.filter(d => [10, 20, 30].includes(d.ano)).map(d => (
+                                                <div key={d.ano} className="bg-slate-50 p-3 rounded-lg">
+                                                    <div className="text-xs text-slate-500 uppercase font-bold">Em {d.ano} Anos</div>
+                                                    <div className="text-red-500 font-bold text-sm mt-1">-{d.perdaPoder}%</div>
+                                                    <div className="text-xs text-slate-400">Poder de compra do dinheiro parado</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card>
                                 </div>
                             )}
 
