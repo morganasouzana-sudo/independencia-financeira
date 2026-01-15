@@ -1,128 +1,126 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Planejador de Independência Financeira</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f6fa;
-      padding: 20px;
-    }
-    .container {
-      max-width: 900px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-    }
-    h1 {
-      text-align: center;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 15px;
-    }
-    label {
-      font-weight: bold;
-    }
-    input {
-      width: 100%;
-      padding: 6px;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px;
-      width: 100%;
-      font-size: 16px;
-      background: #2ecc71;
-      border: none;
-      color: white;
-      cursor: pointer;
-    }
-    .resultado {
-      margin-top: 20px;
-      background: #ecf0f1;
-      padding: 15px;
-      border-radius: 6px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Planejador de Independência Financeira</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px; }
+.container { max-width:1200px; margin:auto; background:#fff; padding:25px; border-radius:10px; }
+h1,h2 { text-align:center; }
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; }
+label { font-weight:bold; font-size:14px; }
+input { width:100%; padding:6px; }
+button { margin-top:20px; padding:12px; width:100%; font-size:16px; background:#2ecc71; color:#fff; border:none; border-radius:5px; }
+.cards { display:flex; gap:15px; margin-top:20px; }
+.card { flex:1; background:#ecf0f1; padding:15px; border-radius:8px; }
+canvas { margin-top:30px; }
+</style>
 </head>
+
 <body>
-
 <div class="container">
-  <h1>Planejador de Independência Financeira</h1>
 
-  <div class="grid">
-    <div>
-      <label>Patrimônio Atual (R$)</label>
-      <input type="number" id="patrimonio">
-    </div>
+<h1>Planejador de Independência Financeira</h1>
 
-    <div>
-      <label>Aporte Mensal (R$)</label>
-      <input type="number" id="aporte">
-    </div>
+<h2>Parâmetros Principais</h2>
+<div class="grid">
+  <div><label>Patrimônio Livre Atual</label><input id="patrimonio" type="number" value="100000"></div>
+  <div><label>Aporte Mensal Livre</label><input id="aporte" type="number" value="3000"></div>
+  <div><label>Anos de Acumulação</label><input id="anos" type="number" value="30"></div>
+  <div><label>Saques Mensais no Usufruto</label><input id="saque" type="number" value="8000"></div>
+  <div><label>Anos de Usufruto</label><input id="anosUsu" type="number" value="35"></div>
+  <div><label>Retorno Real Carteira (%)</label><input id="retorno" type="number" value="7"></div>
+</div>
 
-    <div>
-      <label>Retorno Anual (%)</label>
-      <input type="number" id="retorno" value="10">
-    </div>
+<h2>Balde Previdência & FGTS</h2>
+<div class="grid">
+  <div><label>Saldo Previdência</label><input id="prevSaldo" type="number" value="80000"></div>
+  <div><label>Aporte Mensal Previdência</label><input id="prevAporte" type="number" value="1000"></div>
+  <div><label>Retorno Previdência (%)</label><input id="prevRet" type="number" value="6"></div>
 
-    <div>
-      <label>Inflação Anual (%)</label>
-      <input type="number" id="inflacao" value="4">
-    </div>
+  <div><label>Saldo FGTS</label><input id="fgtsSaldo" type="number" value="50000"></div>
+  <div><label>Aporte Mensal FGTS</label><input id="fgtsAporte" type="number" value="0"></div>
+  <div><label>Retorno FGTS (%)</label><input id="fgtsRet" type="number" value="3"></div>
+</div>
 
-    <div>
-      <label>Tempo de Investimento (anos)</label>
-      <input type="number" id="anos">
-    </div>
+<label>
+  <input type="checkbox" id="usarAlternativos" checked>
+  Usar Previdência e FGTS no Usufruto
+</label>
 
-    <div>
-      <label>Taxa de Retirada (%)</label>
-      <input type="number" id="retirada" value="4">
-    </div>
-  </div>
+<button onclick="simular()">Simular Planejamento</button>
 
-  <button onclick="calcular()">Calcular Cenário</button>
+<div class="cards">
+  <div class="card" id="cardLivre"></div>
+  <div class="card" id="cardPrev"></div>
+  <div class="card" id="cardFgts"></div>
+</div>
 
-  <div class="resultado" id="resultado"></div>
+<canvas id="grafico"></canvas>
+
 </div>
 
 <script>
-function calcular() {
-  const patrimonioInicial = Number(document.getElementById("patrimonio").value);
-  const aporteMensal = Number(document.getElementById("aporte").value);
-  const retornoAnual = Number(document.getElementById("retorno").value) / 100;
-  const inflacaoAnual = Number(document.getElementById("inflacao").value) / 100;
-  const anos = Number(document.getElementById("anos").value);
-  const retirada = Number(document.getElementById("retirada").value) / 100;
+let chart;
 
-  const meses = anos * 12;
-  const retornoMensal = Math.pow(1 + retornoAnual, 1/12) - 1;
-  const inflacaoMensal = Math.pow(1 + inflacaoAnual, 1/12) - 1;
+function simular() {
+  let patrimonio = Number(patrimonio.value);
+  let aporte = Number(aporte.value);
+  let anosAcc = Number(anos.value);
+  let saque = Number(saque.value);
+  let anosUsu = Number(anosUsu.value);
+  let retorno = Number(retorno.value) / 100;
 
-  let patrimonio = patrimonioInicial;
+  let prev = Number(prevSaldo.value);
+  let prevAporte = Number(prevAporte.value);
+  let prevRet = Number(prevRet.value) / 100;
 
-  for (let i = 0; i < meses; i++) {
-    patrimonio = patrimonio * (1 + retornoMensal) + aporteMensal;
+  let fgts = Number(fgtsSaldo.value);
+  let fgtsAporte = Number(fgtsAporte.value);
+  let fgtsRet = Number(fgtsRet.value) / 100;
+
+  let labels = [], dados = [];
+
+  // ACUMULAÇÃO
+  for (let a = 1; a <= anosAcc; a++) {
+    patrimonio = patrimonio * (1 + retorno) + aporte * 12;
+    prev = prev * (1 + prevRet) + prevAporte * 12;
+    fgts = fgts * (1 + fgtsRet) + fgtsAporte * 12;
+
+    labels.push("Ano " + a);
+    dados.push(patrimonio);
   }
 
-  // Ajuste pela inflação
-  const fatorInflacao = Math.pow(1 + inflacaoAnual, anos);
-  const patrimonioReal = patrimonio / fatorInflacao;
+  // USUFRUTO
+  let patrimonioUsufruto = patrimonio;
+  if (usarAlternativos.checked) patrimonioUsufruto += prev + fgts;
 
-  const rendaAnualReal = patrimonioReal * retirada;
-  const rendaMensalReal = rendaAnualReal / 12;
+  for (let u = 1; u <= anosUsu; u++) {
+    patrimonioUsufruto = patrimonioUsufruto * (1 + retorno) - saque * 12;
+    labels.push("U " + u);
+    dados.push(patrimonioUsufruto);
+    if (patrimonioUsufruto <= 0) break;
+  }
 
-  document.getElementById("resultado").innerHTML = `
-    <h3>Resultado do Cenário</h3>
-    <p><strong>Patrimônio Final Nominal:</strong> R$ ${patrimonio.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
-    <p><strong>Patrimônio Final Real:</strong> R$ ${patrimonioReal.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
-    <p><strong>Renda Mensal Real Estimada:</strong> R$ ${rendaMensalReal.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
-  `;
+  cardLivre.innerHTML = `<h3>🪣 Patrimônio Livre</h3><p>R$ ${patrimonio.toLocaleString("pt-BR")}</p>`;
+  cardPrev.innerHTML = `<h3>🪣 Previdência</h3><p>R$ ${prev.toLocaleString("pt-BR")}</p>`;
+  cardFgts.innerHTML = `<h3>🪣 FGTS</h3><p>R$ ${fgts.toLocaleString("pt-BR")}</p>`;
+
+  renderGrafico(labels, dados);
+}
+
+function renderGrafico(labels, dados) {
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("grafico"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{ label: "Patrimônio Total no Tempo", data: dados, borderWidth: 2 }]
+    },
+    options: { responsive:true, plugins:{ legend:{ position:"bottom" } } }
+  });
 }
 </script>
 
