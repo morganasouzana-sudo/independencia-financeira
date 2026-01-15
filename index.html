@@ -53,7 +53,7 @@
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -153,6 +153,7 @@
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
             const [activeTab, setActiveTab] = useState('simulacao'); 
+            const [milestoneMode, setMilestoneMode] = useState('padrao'); // 'padrao', '100k', '500k', '1m'
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
@@ -290,7 +291,6 @@
                                 if (mesFim === null) mesFim = m;
                                 saldoLiq = 0; 
                             }
-                            // Na acumulação, saldo negativo acumula juros de dívida (tratado implicitamente pela taxa positiva sobre saldo negativo na linha de rendimento acima - para simplificar, assumimos que juros da divida = juros investimento, o que é otimista, mas serve para comparação básica de fluxo)
                         }
 
                         if (m === totalMeses) saldoFinal = saldoLiq;
@@ -331,19 +331,64 @@
                     { name: 'Juros', value: totalJuros, color: '#10b981' }
                 ];
 
-                // Marcos
-                let marcos = [
-                    { valor: 100000, nome: "100 Mil", atingidoEm: null },
-                    { valor: 500000, nome: "Meio Milhão", atingidoEm: null },
-                    { valor: 1000000, nome: "1º Milhão", atingidoEm: null, especial: true },
-                    { valor: 2000000, nome: "2 Milhões", atingidoEm: null },
-                    { valor: 5000000, nome: "5 Milhões", atingidoEm: null },
-                    { valor: montanteNecessario, nome: "Liberdade Financeira", atingidoEm: null, alvo: true }
-                ].sort((a,b) => a.valor - b.valor);
+                // 2. Marcos Dinâmicos
+                let marcosList = [];
+                const tetoMarcos = Math.max(montanteNecessario * 1.2, saldoFinalAcumulacao, 1000000);
 
+                if (milestoneMode === '100k') {
+                    for(let v = 100000; v <= tetoMarcos; v += 100000) {
+                        marcosList.push({ valor: v, nome: (v/1000) + "k" });
+                    }
+                } else if (milestoneMode === '500k') {
+                    for(let v = 500000; v <= tetoMarcos; v += 500000) {
+                        marcosList.push({ valor: v, nome: (v/1000) + "k" });
+                    }
+                } else if (milestoneMode === '1m') {
+                    for(let v = 1000000; v <= tetoMarcos; v += 1000000) {
+                        marcosList.push({ valor: v, nome: (v/1000000) + " Milhão" });
+                    }
+                } else {
+                    // Padrão Inteligente (Misto)
+                    marcosList = [
+                        { valor: 100000, nome: "100 Mil" },
+                        { valor: 200000, nome: "200 Mil" },
+                        { valor: 300000, nome: "300 Mil" },
+                        { valor: 500000, nome: "Meio Milhão" },
+                        { valor: 750000, nome: "750 Mil" },
+                        { valor: 1000000, nome: "1º Milhão", especial: true },
+                        { valor: 1500000, nome: "1.5 Milhão" },
+                        { valor: 2000000, nome: "2 Milhões" },
+                        { valor: 3000000, nome: "3 Milhões" },
+                        { valor: 5000000, nome: "5 Milhões" },
+                        { valor: 10000000, nome: "10 Milhões" }
+                    ];
+                }
+
+                // Adiciona metas críticas se não existirem (com margem de erro)
+                const addIfMissing = (val, name, props={}) => {
+                    if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) {
+                        marcosList.push({ valor: val, nome: name, ...props });
+                    } else {
+                        // Se já existe perto, atualiza nome se for importante
+                        const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000);
+                        if (props.alvo) {
+                            existing.nome = name; // Force name overwrite for target
+                            existing.alvo = true;
+                        }
+                    }
+                };
+
+                addIfMissing(montanteNecessario, "Liberdade Financeira", { alvo: true });
+                if (milestoneMode !== 'padrao') addIfMissing(1000000, "1º Milhão", { especial: true });
+
+                marcosList.sort((a,b) => a.valor - b.valor);
+                
+                // Calcula datas
+                marcosList = marcosList.map(m => ({ ...m, atingidoEm: null }));
+                
                 simBase.data.forEach(ponto => {
                     const total = ponto.saldoLiquido + ponto.saldoRestrito;
-                    marcos.forEach(marco => {
+                    marcosList.forEach(marco => {
                         if (!marco.atingidoEm && total >= marco.valor) {
                             marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes };
                         }
@@ -389,30 +434,23 @@
                     ? valorFinanciado * (taxaFinMensal * Math.pow(1 + taxaFinMensal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensal, projPrazoMeses) - 1)
                     : valorFinanciado / projPrazoMeses;
 
-                // Simulação À Vista: Perde capital, mas ganha fluxo do aluguel economizado
                 const simAvista = runSimulation({
                     extraWithdrawFn: (m) => m === projMes ? projValor : 0,
                     extraIncomeFn: (m) => m > projMes ? projAluguel : 0
                 });
 
-                // Simulação Financiada: Paga parcela, mas ganha fluxo do aluguel economizado
                 const simFinanc = runSimulation({
                     extraCostFn: (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
                     extraWithdrawFn: (m) => m === projMes ? projEntrada : 0,
                     extraIncomeFn: (m) => m > projMes ? projAluguel : 0
                 });
 
-                // Impacto Mensal
-                // À Vista: + Aluguel (economia)
-                // Financiado: + Aluguel - Parcela
                 const impactoAvista = projAluguel;
                 const impactoFinanc = projAluguel - parcela;
 
-                // Explicação do resultado
                 let explicacaoProj = "";
                 let melhorEstrat = "Manter Atual";
                 
-                // Critério: Quem tem maior saldo final (considerando que se quebrou antes, perdeu)
                 const finalBase = simBase.mesFim ? -1 : simBase.saldoFinal;
                 const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
                 const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
@@ -496,7 +534,7 @@
                     sobreviveuCrise,
                     riscoRuina: (falhas / simulacoes) * 100,
                     simAvista, simFinanc, comparativoProj, parcela, melhorEstrat, explicacaoProj,
-                    marcos,
+                    marcos: marcosList,
                     simSensAporte, simSensTaxa, inflacaoData, 
                     tempoLiberdadeBase: simBase.atingiuLiberdadeEm,
                     tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm,
@@ -505,7 +543,7 @@
                     totalInvestido, totalJuros
                 };
 
-            }, [inputs]);
+            }, [inputs, milestoneMode]); // Adicionado milestoneMode as dep
 
             // Formatadores
             const formatTempo = (m) => {
@@ -785,8 +823,27 @@
                                     </div>
 
                                     <Card>
-                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><Flag className="w-5 h-5"/> Linha do Tempo da Riqueza</h3>
-                                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2"><Flag className="w-5 h-5"/> Linha do Tempo</h3>
+                                            
+                                            <div className="relative group">
+                                                <select 
+                                                    value={milestoneMode}
+                                                    onChange={(e) => setMilestoneMode(e.target.value)}
+                                                    className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-lg pl-3 pr-8 py-1.5 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer hover:bg-slate-200 transition-colors"
+                                                >
+                                                    <option value="padrao">Inteligente (Padrão)</option>
+                                                    <option value="100k">Passo a Passo (100k)</option>
+                                                    <option value="500k">Grandes Saltos (500k)</option>
+                                                    <option value="1m">Milionário (1M)</option>
+                                                </select>
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                    <ListFilter size={14} className="text-slate-500"/>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
                                             {results.marcos.map((marco, idx) => (
                                                 <div key={idx} className={`ml-6 relative ${!marco.atingidoEm ? 'opacity-50' : ''}`}>
                                                     <span className={`absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white ${marco.atingidoEm ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
