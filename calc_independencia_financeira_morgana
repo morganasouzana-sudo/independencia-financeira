@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Planejador de Independência Financeira</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    h1 {
+      text-align: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+    label {
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      padding: 6px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px;
+      width: 100%;
+      font-size: 16px;
+      background: #2ecc71;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    .resultado {
+      margin-top: 20px;
+      background: #ecf0f1;
+      padding: 15px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Planejador de Independência Financeira</h1>
+
+  <div class="grid">
+    <div>
+      <label>Patrimônio Atual (R$)</label>
+      <input type="number" id="patrimonio">
+    </div>
+
+    <div>
+      <label>Aporte Mensal (R$)</label>
+      <input type="number" id="aporte">
+    </div>
+
+    <div>
+      <label>Retorno Anual (%)</label>
+      <input type="number" id="retorno" value="10">
+    </div>
+
+    <div>
+      <label>Inflação Anual (%)</label>
+      <input type="number" id="inflacao" value="4">
+    </div>
+
+    <div>
+      <label>Tempo de Investimento (anos)</label>
+      <input type="number" id="anos">
+    </div>
+
+    <div>
+      <label>Taxa de Retirada (%)</label>
+      <input type="number" id="retirada" value="4">
+    </div>
+  </div>
+
+  <button onclick="calcular()">Calcular Cenário</button>
+
+  <div class="resultado" id="resultado"></div>
+</div>
+
+<script>
+function calcular() {
+  const patrimonioInicial = Number(document.getElementById("patrimonio").value);
+  const aporteMensal = Number(document.getElementById("aporte").value);
+  const retornoAnual = Number(document.getElementById("retorno").value) / 100;
+  const inflacaoAnual = Number(document.getElementById("inflacao").value) / 100;
+  const anos = Number(document.getElementById("anos").value);
+  const retirada = Number(document.getElementById("retirada").value) / 100;
+
+  const meses = anos * 12;
+  const retornoMensal = Math.pow(1 + retornoAnual, 1/12) - 1;
+  const inflacaoMensal = Math.pow(1 + inflacaoAnual, 1/12) - 1;
+
+  let patrimonio = patrimonioInicial;
+
+  for (let i = 0; i < meses; i++) {
+    patrimonio = patrimonio * (1 + retornoMensal) + aporteMensal;
+  }
+
+  // Ajuste pela inflação
+  const fatorInflacao = Math.pow(1 + inflacaoAnual, anos);
+  const patrimonioReal = patrimonio / fatorInflacao;
+
+  const rendaAnualReal = patrimonioReal * retirada;
+  const rendaMensalReal = rendaAnualReal / 12;
+
+  document.getElementById("resultado").innerHTML = `
+    <h3>Resultado do Cenário</h3>
+    <p><strong>Patrimônio Final Nominal:</strong> R$ ${patrimonio.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
+    <p><strong>Patrimônio Final Real:</strong> R$ ${patrimonioReal.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
+    <p><strong>Renda Mensal Real Estimada:</strong> R$ ${rendaMensalReal.toLocaleString("pt-BR", {maximumFractionDigits: 2})}</p>
+  `;
+}
+</script>
+
+</body>
+</html>
