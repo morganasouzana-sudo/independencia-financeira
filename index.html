@@ -58,7 +58,7 @@
         // --- COMPONENTES UI ---
 
         const Card = ({ children, className = "" }) => (
-            <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className}`}>
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 ${className}`}>
                 {children}
             </div>
         );
@@ -110,7 +110,7 @@
                             </div>
                         )}
                     </div>
-                    {helpText && <p className="text-xs text-slate-500 mt-1">{helpText}</p>}
+                    {helpText && <p className="text-xs text-slate-500 mt-1 leading-tight">{helpText}</p>}
                 </div>
             );
         };
@@ -145,9 +145,9 @@
                 projetoTaxaFin: 10,
                 projetoPrazo: 30,
 
-                // Sensibilidade (Novo)
-                sensAporteExtra: "50000", // R$ 500
-                sensTaxaExtra: 1.0 // 1%
+                // Sensibilidade
+                sensAporteExtra: "50000", 
+                sensTaxaExtra: 1.0 
             });
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
@@ -155,14 +155,10 @@
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v7'); // Bump version
-                
+                let saved = localStorage.getItem('financial_plan_v7');
                 if (!saved) {
-                    saved = localStorage.getItem('financial_plan_v6') || 
-                            localStorage.getItem('financial_plan_v5') || 
-                            localStorage.getItem('financial_plan_v4');
+                    saved = localStorage.getItem('financial_plan_v6') || localStorage.getItem('financial_plan_v5') || localStorage.getItem('financial_plan_v4');
                 }
-
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
@@ -194,7 +190,7 @@
 
             // --- ENGINE DE CÁLCULO ---
             const results = useMemo(() => {
-                // Parsing inputs
+                // Parsing
                 const patrimonioLiq = parseInt(inputs.patrimonio || "0") / 100;
                 const aporteMensal = parseInt(inputs.aporte || "0") / 100;
                 const saqueMensal = parseInt(inputs.saque || "0") / 100;
@@ -203,7 +199,6 @@
                 const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
                 const taxaInflacao = parseFloat(inputs.inflacao) / 100;
                 
-                // Taxa Real Base
                 let taxaMensalInv;
                 if (inputs.considerarInflacao) {
                     const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
@@ -220,7 +215,6 @@
                     ? saqueMensal * (1 - Math.pow(1 + taxaMensalInv, -mesesUsufruto)) / taxaMensalInv 
                     : saqueMensal * mesesUsufruto) * (1 + inputs.margemSeguranca/100);
 
-                // Helper Aportes Extras
                 const getExtraInflow = (m, isAcc) => {
                     let inflow = 0;
                     inputs.aportesExtras.forEach(aporte => {
@@ -235,7 +229,6 @@
                     return inflow;
                 };
 
-                // --- Função Genérica de Simulação ---
                 const runSimulation = (params = {}) => {
                     const {
                         pInicial = patrimonioLiq,
@@ -302,12 +295,11 @@
                     return { saldoFinal, mesFim, data, atingiuLiberdadeEm };
                 };
 
-                // 1. Simulação Base
                 const simBase = runSimulation();
                 
                 const saldoFinalAcumulacao = simBase.data.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0;
 
-                // --- Cálculo Composição Patrimônio (Novo) ---
+                // --- Cálculo Composição Patrimônio (Pizza) ---
                 let totalInvestido = patrimonioLiq + restrito + (aporteMensal * mesesAcumulacao);
                 inputs.aportesExtras.forEach(ap => {
                     const val = parseInt(ap.valor || "0")/100;
@@ -319,13 +311,13 @@
                 });
                 
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
-                
+                // Garantir que não quebre se o total for negativo por algum motivo extremo
                 const pieData = [
-                    { name: 'Aportes (Principal)', value: Math.min(totalInvestido, saldoFinalAcumulacao), color: '#3b82f6' }, // Blue
-                    { name: 'Juros (Rendimento)', value: totalJuros, color: '#10b981' } // Emerald
+                    { name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' },
+                    { name: 'Juros', value: totalJuros, color: '#10b981' }
                 ];
 
-                // 2. Marcos
+                // Marcos
                 let marcos = [
                     { valor: 100000, nome: "100 Mil", atingidoEm: null },
                     { valor: 500000, nome: "Meio Milhão", atingidoEm: null },
@@ -344,7 +336,7 @@
                     });
                 });
 
-                // 3. Sensibilidade
+                // Sensibilidade
                 const sensAporteVal = parseInt(inputs.sensAporteExtra || "0") / 100;
                 const simSensAporte = runSimulation({ apMensal: aporteMensal + sensAporteVal });
                 
@@ -359,7 +351,7 @@
                 }
                 const simSensTaxa = runSimulation({ txMensal: novaTaxaMensal });
 
-                // 4. Inflação
+                // Inflação
                 const inflacaoData = [];
                 for(let y=0; y<=30; y+=5) {
                     const fator = Math.pow(1 + taxaInflacao, y);
@@ -370,7 +362,7 @@
                     });
                 }
 
-                // 5. Projetos
+                // Projetos
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
                 const projMes = inputs.projetoAno * 12;
@@ -403,7 +395,7 @@
                 else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
                 else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
 
-                // 6. Crise
+                // Crise
                 let saldoCrise = saldoFinalAcumulacao * 0.7; // -30%
                 let sobreviveuCrise = true;
                 for (let m = 1; m <= mesesUsufruto; m++) {
@@ -415,7 +407,7 @@
                     }
                 }
 
-                // 7. Risco
+                // Risco
                 const simulacoes = 200;
                 let falhas = 0;
                 for (let s = 0; s < simulacoes; s++) {
@@ -467,7 +459,8 @@
                     tempoLiberdadeBase: simBase.atingiuLiberdadeEm,
                     tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm,
                     tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm,
-                    pieData // Dados para o gráfico de pizza
+                    pieData,
+                    totalInvestido, totalJuros // Exportando para exibir no cartão
                 };
 
             }, [inputs]);
@@ -487,6 +480,18 @@
                 const diff = base - novo;
                 if (diff <= 0) return "Mesmo tempo";
                 return `${formatTempo(diff)} a menos`;
+            };
+
+            const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return (
+                    <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12}>
+                        {`${(percent * 100).toFixed(0)}%`}
+                    </text>
+                );
             };
 
             return (
@@ -634,64 +639,70 @@
                                         </div>
                                     </div>
 
-                                    {/* CHARTS ROW */}
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        {/* EVOLUTION CHART (2/3 width) */}
-                                        <div className="lg:col-span-2">
-                                            <Card className="h-80">
-                                                <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">Evolução Patrimonial <span className="text-sm font-normal text-slate-500">Verde: Liquidez | Cinza: Bens</span></h3>
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={results.baseData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                        <defs>
-                                                            <linearGradient id="colorLiquido" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.2}/>
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                        <XAxis dataKey="ano" tick={{fontSize: 12}} />
-                                                        <YAxis tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(value)} tick={{fontSize: 12}} width={60} />
-                                                        <Tooltip formatter={(value) => formatMoney(value)} />
-                                                        <ReferenceLine x={inputs.anosAcumulacao} stroke="#f97316" strokeDasharray="3 3" label="Aposentadoria" />
-                                                        <Area type="monotone" dataKey="saldoImobilizado" stackId="1" stroke="#94a3b8" fill="#cbd5e1" />
-                                                        <Area type="monotone" dataKey="saldoRestrito" stackId="1" stroke="#3b82f6" fill="#93c5fd" />
-                                                        <Area type="monotone" dataKey="saldoLiquido" stackId="1" stroke="#10b981" fill="url(#colorLiquido)" />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
-                                            </Card>
-                                        </div>
+                                    <Card className="h-80 mb-6">
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">Evolução Patrimonial <span className="text-sm font-normal text-slate-500">Verde: Liquidez | Cinza: Bens</span></h3>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={results.baseData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="colorLiquido" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.2}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis dataKey="ano" tick={{fontSize: 12}} />
+                                                <YAxis tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(value)} tick={{fontSize: 12}} width={60} />
+                                                <Tooltip formatter={(value) => formatMoney(value)} />
+                                                <ReferenceLine x={inputs.anosAcumulacao} stroke="#f97316" strokeDasharray="3 3" label="Aposentadoria" />
+                                                <Area type="monotone" dataKey="saldoImobilizado" stackId="1" stroke="#94a3b8" fill="#cbd5e1" />
+                                                <Area type="monotone" dataKey="saldoRestrito" stackId="1" stroke="#3b82f6" fill="#93c5fd" />
+                                                <Area type="monotone" dataKey="saldoLiquido" stackId="1" stroke="#10b981" fill="url(#colorLiquido)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </Card>
 
-                                        {/* PIE CHART (1/3 width) */}
-                                        <div className="lg:col-span-1">
-                                            <Card className="h-80 flex flex-col">
-                                                <h3 className="text-lg font-bold text-slate-700 mb-2 flex items-center gap-2">
-                                                    <PieIcon className="w-5 h-5"/> Composição
-                                                </h3>
-                                                <p className="text-xs text-slate-500 mb-4">Origem do patrimônio acumulado na aposentadoria.</p>
-                                                <div className="flex-1 min-h-0">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <PieChart>
-                                                            <Pie
-                                                                data={results.pieData}
-                                                                cx="50%"
-                                                                cy="50%"
-                                                                innerRadius={60}
-                                                                outerRadius={80}
-                                                                paddingAngle={5}
-                                                                dataKey="value"
-                                                            >
-                                                                {results.pieData.map((entry, index) => (
-                                                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                                                ))}
-                                                            </Pie>
-                                                            <Tooltip formatter={(value) => formatMoney(value)} />
-                                                            <Legend verticalAlign="bottom" height={36}/>
-                                                        </PieChart>
-                                                    </ResponsiveContainer>
+                                    <Card>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            <PieIcon className="w-5 h-5"/> Composição Patrimonial (Aposentadoria)
+                                        </h3>
+                                        <div className="flex flex-col md:flex-row items-center gap-8">
+                                            <div className="h-64 w-full md:w-1/2">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={results.pieData}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={60}
+                                                            outerRadius={80}
+                                                            paddingAngle={5}
+                                                            dataKey="value"
+                                                            label={renderCustomizedLabel}
+                                                        >
+                                                            {results.pieData.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip formatter={(value) => formatMoney(value)} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="w-full md:w-1/2 space-y-4">
+                                                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                                                    <span className="text-gray-600 flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Total Aportado</span>
+                                                    <span className="font-bold text-gray-800">{formatMoney(results.totalInvestido)}</span>
                                                 </div>
-                                            </Card>
+                                                <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                                                    <span className="text-gray-600 flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Rendimento (Juros)</span>
+                                                    <span className="font-bold text-gray-800">{formatMoney(results.totalJuros)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-2">
+                                                    <span className="text-gray-800 font-bold text-sm">Total Acumulado</span>
+                                                    <span className="font-bold text-lg text-emerald-700">{formatMoney(results.saldoFinalAcumulacao)}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </Card>
                                 </>
                             )}
 
