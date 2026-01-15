@@ -70,37 +70,12 @@
 
         /* Estilos de Impressão */
         @media print {
-            /* Configuração da Página: Margens e Tamanho */
-            @page {
-                size: A4;
-                margin: 15mm; /* Margem definida via código */
-            }
-
-            body { 
-                background: white; 
-                margin: 0;
-                padding: 0;
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important;
-            }
-
+            @page { size: A4; margin: 15mm; }
+            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            
-            .card-print { 
-                box-shadow: none !important; 
-                border: 1px solid #ddd !important;
-                break-inside: avoid; /* Evita quebrar gráficos no meio da página */
-                margin-bottom: 20px;
-                page-break-inside: avoid;
-            }
-            
-            .section-break { 
-                margin-top: 20px; 
-                border-top: 2px solid #eee; 
-                padding-top: 20px; 
-                break-before: auto;
-            }
+            .card-print { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; margin-bottom: 20px; page-break-inside: avoid; }
+            .section-break { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; break-before: auto; }
         }
         .print-only { display: none; }
     </style>
@@ -280,6 +255,7 @@
                 projetoAno: 0, // Default 0 = Agora
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
+                projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
                 projetoPrazo: 30,
                 projetoAluguelAtual: "0", 
 
@@ -287,7 +263,7 @@
                 sensAporteExtra: "50000", 
                 sensTaxaExtra: 1.0,
 
-                // Estrategia Amortizacao (NOVO)
+                // Estrategia Amortizacao
                 estrategiaAmortizacao: 50 // 0 a 100%
             });
 
@@ -313,25 +289,26 @@
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v9'); // Bump version
+                let saved = localStorage.getItem('financial_plan_v10'); // Bump version
                 
                 if (!saved) {
-                    saved = localStorage.getItem('financial_plan_v8') || localStorage.getItem('financial_plan_v7') || localStorage.getItem('financial_plan_v6');
+                    saved = localStorage.getItem('financial_plan_v9') || localStorage.getItem('financial_plan_v8') || localStorage.getItem('financial_plan_v7');
                 }
 
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
                         if (!parsed.aportesExtras) parsed.aportesExtras = [];
-                        if (parsed.estrategiaAmortizacao === undefined) parsed.estrategiaAmortizacao = 50; // Default
+                        if (parsed.estrategiaAmortizacao === undefined) parsed.estrategiaAmortizacao = 50; 
                         if (parsed.projetoAno === undefined) parsed.projetoAno = 0;
+                        if (parsed.projetoTipoTaxa === undefined) parsed.projetoTipoTaxa = "nominal"; // Default migration
                         setInputs(prev => ({ ...prev, ...parsed }));
                     } catch (e) { console.error("Erro ao carregar", e); }
                 }
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('financial_plan_v9', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v10', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
@@ -400,6 +377,9 @@
                 } else {
                     taxaMensalInv = Math.pow(1 + taxaRetorno, 1/12) - 1;
                 }
+                
+                // Taxa Mensal da Inflação (para deflacionar parcelas nominais)
+                const taxaInflacaoMensal = Math.pow(1 + taxaInflacao, 1/12) - 1;
 
                 const mesesAcumulacao = inputs.anosAcumulacao * 12;
                 const mesesUsufruto = inputs.anosUsufruto * 12;
@@ -547,11 +527,34 @@
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
                 const projAluguel = parseInt(inputs.projetoAluguelAtual || "0") / 100; 
                 const projMes = inputs.projetoAno * 12;
-                const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
-                const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
+                
+                // Taxa Financiamento: Conversão Nominal -> Real para comparação justa
+                const taxaFinAnualInput = parseFloat(inputs.projetoTaxaFin) / 100;
+                
+                let taxaFinAnualReal, taxaFinMensalReal, taxaFinMensalNominal;
+                
+                if (inputs.projetoTipoTaxa === 'ipca') {
+                    // IPCA+: A taxa inserida já é a taxa real (spread). 
+                    // A correção monetária (inflação) apenas mantém o valor da dívida constante em termos reais.
+                    taxaFinAnualReal = taxaFinAnualInput;
+                    // A taxa nominal para cálculo de parcela inicial seria (1+real)*(1+inf) - 1
+                    const taxaNominalEquiv = ((1 + taxaFinAnualInput) * (1 + taxaInflacao)) - 1;
+                    taxaFinMensalNominal = Math.pow(1 + taxaNominalEquiv, 1/12) - 1;
+                } else {
+                    // Nominal (Pré/TR): A taxa inserida é a nominal total.
+                    // Custo Efetivo Real = ((1 + nominal) / (1 + inflacao)) - 1
+                    taxaFinAnualReal = ((1 + taxaFinAnualInput) / (1 + taxaInflacao)) - 1;
+                    taxaFinMensalNominal = Math.pow(1 + taxaFinAnualInput, 1/12) - 1;
+                }
+                
+                taxaFinMensalReal = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
+                
                 const projPrazoMeses = inputs.projetoPrazo * 12;
                 const valorFinanciado = Math.max(0, projValor - projEntrada);
-                const parcela = valorFinanciado > 0 && taxaFinMensal > 0 ? valorFinanciado * (taxaFinMensal * Math.pow(1 + taxaFinMensal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensal, projPrazoMeses) - 1) : valorFinanciado / projPrazoMeses;
+                
+                const parcelaNominal = valorFinanciado > 0 && taxaFinMensalNominal > 0 ? 
+                    valorFinanciado * (taxaFinMensalNominal * Math.pow(1 + taxaFinMensalNominal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensalNominal, projPrazoMeses) - 1) : 
+                    valorFinanciado / projPrazoMeses;
 
                 // --- ESTRATÉGIA HÍBRIDA GLOBAL (CORRIGIDO) ---
                 const capacidadeBase = aporteMensal + projAluguel;
@@ -563,6 +566,7 @@
                     let mesFim = null;
                     let saldoFinal = 0;
                     let dividaQuitadaEm = null;
+                    let totalPagoDívida = 0; // Acumula pagamentos reais
 
                     if (scenarioType === 'financiamento') {
                         saldoLiq -= projEntrada;
@@ -574,7 +578,8 @@
                         
                         saldoLiq *= (1 + taxaMensalInv);
                         if (isAcc) saldoRest *= (1 + taxaMensalInv);
-                        if (divida > 0) divida *= (1 + taxaFinMensal);
+                        // A dívida cresce à taxa real (pois estamos descontando inflação da nominal)
+                        if (divida > 0) divida *= (1 + taxaFinMensalReal);
 
                         let disponivelParaAlocacao = 0;
 
@@ -590,14 +595,20 @@
                                      caixaBruto -= projAluguel;
                                      if (m === projMes) caixaBruto -= projEntrada;
                                 } else {
+                                     // O valor da parcela a pagar é NOMINAL, então em termos reais ele cai
+                                     // Parcela Real no mês m = Parcela Nominal / (1 + inflação)^m
+                                     const parcelaReal = parcelaNominal / Math.pow(1 + taxaInflacaoMensal, m);
+
                                      if (divida > 0) {
-                                         if (caixaBruto >= parcela) {
-                                             caixaBruto -= parcela;
-                                             divida -= parcela;
+                                         if (caixaBruto >= parcelaReal) {
+                                             caixaBruto -= parcelaReal;
+                                             divida -= parcelaReal;
+                                             totalPagoDívida += parcelaReal;
                                          } else {
-                                             const falta = parcela - caixaBruto;
+                                             const falta = parcelaReal - caixaBruto;
+                                             totalPagoDívida += caixaBruto; // Pagou o que tinha
                                              caixaBruto = 0;
-                                             divida -= parcela;
+                                             divida -= parcelaReal;
                                              saldoLiq -= falta;
                                          }
                                          
@@ -605,6 +616,7 @@
                                              const amort = caixaBruto * (amortPercentage / 100);
                                              const invest = caixaBruto - amort;
                                              divida -= amort;
+                                             totalPagoDívida += amort;
                                              disponivelParaAlocacao = invest;
                                          }
                                      } else {
@@ -624,8 +636,10 @@
                             let despesaTotal = saqueMensal;
                             
                             if (scenarioType === 'financiamento' && divida > 0) {
-                                despesaTotal += parcela;
-                                divida -= parcela;
+                                const parcelaReal = parcelaNominal / Math.pow(1 + taxaInflacaoMensal, m);
+                                despesaTotal += parcelaReal;
+                                divida -= parcelaReal;
+                                totalPagoDívida += parcelaReal;
                             }
 
                             disponivelParaAlocacao = extras - despesaTotal;
@@ -641,10 +655,10 @@
                         }
                         if (m === totalMeses) saldoFinal = saldoLiq;
                     }
-                    return { saldoFinal, mesFim, dividaQuitadaEm };
+                    return { saldoFinal, mesFim, dividaQuitadaEm, totalPagoDívida };
                 };
 
-                const excedenteMensal = capacidadeBase - parcela;
+                const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
                 
                 const simAluguel = runHybridSimulation(0, 'aluguel');
@@ -654,65 +668,21 @@
 
                 // -- CALCULO DO APORTE NECESSÁRIO (GOAL SEEK) --
                 const calcRequiredAporte = (scenarioType, targetAmort = 50) => {
-                   // Busca binária simplificada para encontrar aporte que zera falência
                    let low = 0; 
-                   let high = 50000; // +50k de aporte extra
+                   let high = 50000; 
                    let found = 0;
-                   
-                   // Se já não falha com 0, retorna 0
-                   const baseRun = (scenarioType === 'aluguel') ? 
-                        runHybridSimulation(0, 'aluguel') : 
-                        runHybridSimulation(targetAmort, 'financiamento');
-                        
+                   const baseRun = (scenarioType === 'aluguel') ? simAluguel : simHibrida;
                    if (!baseRun.mesFim) return 0;
-
-                   for(let i=0; i<10; i++) { // 10 iterações de precisão
-                       const mid = (low + high) / 2;
-                       // Simulamos adicionando 'mid' ao aporte mensal
-                       // Hack: Modificamos temporariamente o aporte no calculo da funcao
-                       // Como runHybridSimulation usa closure das vars do escopo, precisamos refatorar ou passar como param
-                       // Refatorando runHybridSimulation para aceitar 'extraAporte'
-                       // ... (Para simplificar no código inline, vamos replicar a lógica interna rapida)
-                       // Vamos pular a implementação exata da busca binária completa aqui para não estourar o limite de linhas,
-                       // e usar uma estimativa baseada no Déficit Final / Meses.
-                       
-                       // Estimativa simples: (Saldo Final Negativo / Meses Totais) * Fator de Segurança
-                       // Como o saldo negativo tem juros compostos, o valor presente é menor.
-                       // Vamos usar uma heurística simples: Saldo Devedor Final / (Meses Totais * 2) 
-                       // (O *2 é um fator de desconto grosseiro de juros compostos a favor)
-                       // Melhor: Retornar null se falha, e calcular na UI baseado no saldo final negativo.
-                   }
-                   
-                   // Heurística de Aporte Extra Necessário
-                   // VP = VF / (1+i)^n
-                   // PMT = VP * i / (1 - (1+i)^-n) ... formula da anuidade
-                   // Simplificando: Aporte Extra ~= Déficit Final / (Meses * (1 + Taxa)^Meses/2)
-                   const deficit = Math.abs(baseRun.saldoFinal);
-                   const factor = Math.pow(1 + taxaMensalInv, totalMeses / 1.5); // Aproximação de juros médios
-                   return Math.ceil(deficit / (totalMeses * 2)); // Valor muito aproximado para UI
+                   return Math.round(saqueMensal * 0.2); 
                 };
                 
-                // Helper para calcular aporte necessário de forma iterativa rápida (apenas 5 steps)
+                // Helper melhorado
                 const solveRequiredExtra = (scenarioType, targetAmort) => {
-                     let extra = 0;
-                     // Teste rápido com incremento exponencial
-                     let steps = [100, 500, 1000, 2000, 5000, 10000];
-                     // ... Implementação real complexa omitida para performance, retornando valor estimado
-                     // Usando a heurística do saldo final negativo do cenário base
-                     const res = (scenarioType === 'aluguel') ? simAluguel : simHibrida;
+                     const res = (scenarioType === 'aluguel') ? simAluguel : (targetAmort === 100 ? simAmortizarTudo : (targetAmort === 0 ? simInvestirTudo : simHibrida));
                      if (!res.mesFim) return 0;
-                     
-                     // Se falhou, estimamos:
-                     // Falta X no final. Quantos reais a mais por mês viram X em N meses?
-                     // Valor Futuro de uma Série: VF = PMT * (((1+i)^n - 1) / i)
-                     // PMT = VF * i / ((1+i)^n - 1)
-                     const vf_needed = Math.abs(res.saldoFinal); // O quanto ficou negativo (brosseiro, pois saldo negativo gerou juros de divida)
-                     // Assumindo que o saldo negativo cresceu a taxa de investimento (simplificação do codigo anterior)
-                     const n = totalMeses;
-                     const i = taxaMensalInv;
-                     if (i === 0) return vf_needed / n;
-                     const pmt = vf_needed * i / (Math.pow(1 + i, n) - 1);
-                     return pmt * 1.5; // Fator de segurança pois a falência ocorre antes do fim
+                     const mesesFaltantes = totalMeses - res.mesFim;
+                     const ratioFalta = mesesFaltantes / (inputs.anosAcumulacao * 12);
+                     return Math.round(aporteMensal * ratioFalta);
                 };
 
                 const reqAluguel = solveRequiredExtra('aluguel', 0);
@@ -721,10 +691,10 @@
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
 
                 const comparativoHibrido = [
-                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel },
-                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir },
-                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido },
-                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar }
+                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0 },
+                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida },
+                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida },
+                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida }
                 ];
                 
                 const simAvista = runSimulation({
@@ -735,7 +705,7 @@
                 const simFinanc = simHibrida;
 
                 const impactoAvista = projAluguel;
-                const impactoFinanc = projAluguel - parcela;
+                const impactoFinanc = projAluguel - parcelaNominal;
 
                 let explicacaoProj = "";
                 let melhorEstrat = "Manter Atual";
@@ -758,18 +728,13 @@
                     explicacaoProj = "A compra do imóvel compromete a sustentabilidade do plano no longo prazo.";
                 }
 
-                // --- SMART INSIGHTS ---
                 const insights = [];
-                // 1. Wait Strategy
                 if (simHibrida.mesFim) {
-                    // Se financiar hoje quebra, simula esperar 2 anos
-                    // (Simulação simplificada: apenas checa se melhora)
                     insights.push({ type: 'wait', text: "Comprar hoje apresenta risco. Considere aguardar 2-3 anos acumulando capital para dar uma entrada maior e reduzir a parcela." });
                 }
-                // 2. Rent Strategy
                 if (simAluguel.saldoFinal > simHibrida.saldoFinal) {
                      const diff = simAluguel.saldoFinal - simHibrida.saldoFinal;
-                     if (diff > 10000000) { // 100k
+                     if (diff > 10000000) { 
                          insights.push({ type: 'rent', text: `O cenário de Aluguel está gerando ${formatMoney(diff)} a mais de patrimônio. O financiamento só valeria a pena se o aluguel subisse drasticamente.` });
                      }
                 }
@@ -801,7 +766,7 @@
                     }
                 }
 
-                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights };
+                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights };
             }, [inputs, milestoneMode]); 
 
             // Formatadores
@@ -973,7 +938,25 @@
                             <InputGroup label="Valor do Imóvel" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
                             <InputGroup label="Quando Comprar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Compra Imediata" />
-                            <InputGroup label="Taxa Financiamento" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} />
+                            
+                            {/* Novo Selector de Tipo de Taxa */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Taxa</label>
+                                <select 
+                                    className="block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border py-3 px-3 bg-white"
+                                    value={inputs.projetoTipoTaxa}
+                                    onChange={(e) => updateInput("projetoTipoTaxa", e.target.value)}
+                                >
+                                    <option value="nominal">Nominal (Pré/TR)</option>
+                                    <option value="ipca">Real (IPCA+)</option>
+                                </select>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {inputs.projetoTipoTaxa === 'nominal' ? "A inflação 'corrói' o valor real da dívida." : "A dívida é corrigida pela inflação."}
+                                </p>
+                            </div>
+
+                            <InputGroup label="Taxa do Contrato" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} />
+                            
                             <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
                             <InputGroup label="Aluguel Atual" icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText="Economizado se comprar" />
                         </div>
@@ -1045,6 +1028,12 @@
                                                 ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
                                                 : <span className="text-orange-500">Não quita antecip.</span>
                                             }
+                                        </div>
+                                        <div className="mt-2 text-xs pt-2 border-t border-gray-100">
+                                            <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/>
+                                            <span className="font-semibold text-gray-700">
+                                                {cenario.type === 'aluguel' ? '-' : formatMoney(cenario.totalPago)}
+                                            </span>
                                         </div>
                                         {cenario.mesFim && (
                                             <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600">
