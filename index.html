@@ -21,7 +21,7 @@
         }
     </script>
 
-    <!-- Import Map: Ensina o navegador onde buscar os pacotes React e Recharts -->
+    <!-- Import Map -->
     <script type="importmap">
     {
         "imports": {
@@ -34,26 +34,26 @@
     }
     </script>
 
-    <!-- Babel Standalone: Permite rodar JSX (código React) direto no navegador -->
+    <!-- Babel Standalone -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
-        /* Estilos extras para garantir visualização limpa */
         body { -webkit-font-smoothing: antialiased; }
         .recharts-wrapper { margin: 0 auto; }
+        /* Scrollbar customizada para lista de aportes */
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
     </style>
 </head>
 <body class="bg-slate-50">
     
-    <!-- Onde o React vai montar o app -->
     <div id="root"></div>
 
-    <!-- Seu Código React (Tipo "text/babel" para ser processado) -->
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -63,7 +63,7 @@
             </div>
         );
 
-        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "" }) => {
+        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "", compact = false }) => {
             const handleChange = (e) => {
                 let val = e.target.value;
                 if (type === "currency") {
@@ -77,7 +77,6 @@
             const displayValue = () => {
                 if (type === "currency") {
                     if (!value) return "";
-                    // Garante que value seja tratado como string de centavos ou numero
                     const numVal = parseInt(value);
                     if (isNaN(numVal)) return "";
                     return (numVal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
@@ -86,24 +85,30 @@
             };
 
             return (
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between items-center">
-                        {label}
-                    </label>
+                <div className={compact ? "mb-2" : "mb-4"}>
+                    {label && (
+                        <label className={`block text-sm font-medium text-gray-700 ${compact ? "mb-0.5" : "mb-1"}`}>
+                            {label}
+                        </label>
+                    )}
                     <div className="relative rounded-md shadow-sm group">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Icon className="h-5 w-5 text-gray-400" />
-                        </div>
+                        {Icon && (
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Icon className="h-4 w-4 text-gray-400" />
+                            </div>
+                        )}
                         <input
                             type={type === "number" ? "number" : "text"}
                             value={displayValue()}
                             onChange={handleChange}
-                            className="block w-full pl-10 pr-12 py-3 border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors"
+                            className={`block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors ${Icon ? 'pl-9' : 'pl-3'} ${suffix ? 'pr-10' : 'pr-3'} ${compact ? 'py-1.5' : 'py-3'}`}
                             placeholder="0,00"
                         />
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <span className="text-gray-500 sm:text-sm">{suffix}</span>
-                        </div>
+                        {suffix && (
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <span className="text-gray-500 sm:text-sm">{suffix}</span>
+                            </div>
+                        )}
                     </div>
                     {helpText && <p className="text-xs text-slate-500 mt-1">{helpText}</p>}
                 </div>
@@ -129,55 +134,84 @@
                 // Ativos
                 patrimonioImobilizado: "0", 
                 patrimonioRestrito: "0",
+                
+                // Aportes Extras (NOVO)
+                aportesExtras: [], // Array de objetos { id, nome, tipo, valor, ano }
 
-                // Projetos (Novo)
-                projetoValor: "50000000", // 500k
+                // Projetos
+                projetoValor: "50000000",
                 projetoAno: 5,
-                projetoEntrada: "10000000", // 100k (20%)
-                projetoTaxaFin: 10, // 10% a.a CET
-                projetoPrazo: 30 // 30 anos
+                projetoEntrada: "10000000",
+                projetoTaxaFin: 10,
+                projetoPrazo: 30
+            });
+
+            // State local para o formulário de novo aporte
+            const [novoAporte, setNovoAporte] = useState({
+                nome: "",
+                tipo: "recorrente", // recorrente | unico
+                valor: "",
+                ano: ""
             });
 
             const [showDetails, setShowDetails] = useState(false);
-            const [activeTab, setActiveTab] = useState('simulacao'); // 'simulacao' | 'risco' | 'projetos'
+            const [activeTab, setActiveTab] = useState('simulacao'); 
 
-            // --- LOAD & MIGRAÇÃO DE DADOS ---
+            // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                // Tenta carregar a versão atual
-                let saved = localStorage.getItem('financial_plan_v5');
+                let saved = localStorage.getItem('financial_plan_v6'); // Bump version
                 
-                // Se não encontrar, tenta migrar de versões anteriores para não perder dados
                 if (!saved) {
-                    console.log("Migrando dados de versão anterior...");
-                    saved = localStorage.getItem('financial_plan_v4') || 
-                            localStorage.getItem('financial_plan_v3') || 
-                            localStorage.getItem('financial_plan_v2') ||
-                            localStorage.getItem('plano'); // Versão original HTML puro
+                    // Tenta migrar da v5 ou anteriores
+                    saved = localStorage.getItem('financial_plan_v5') || 
+                            localStorage.getItem('financial_plan_v4');
                 }
 
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        // Mescla o que foi salvo com o estado inicial (para garantir que novos campos tenham valor default)
+                        // Garante que aportesExtras seja um array se vier de versão antiga
+                        if (!parsed.aportesExtras) parsed.aportesExtras = [];
                         setInputs(prev => ({ ...prev, ...parsed }));
-                    } catch (e) { console.error("Erro ao carregar dados salvos", e); }
+                    } catch (e) { console.error("Erro ao carregar", e); }
                 }
             }, []);
 
-            // Save to local storage (Sempre salva na versão mais nova)
             useEffect(() => {
-                localStorage.setItem('financial_plan_v5', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v6', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
                 setInputs(prev => ({ ...prev, [field]: value }));
             };
 
+            // Handlers para Aportes Extras
+            const adicionarAporteExtra = () => {
+                if (!novoAporte.valor || (novoAporte.tipo === 'unico' && !novoAporte.ano)) return;
+                
+                setInputs(prev => ({
+                    ...prev,
+                    aportesExtras: [
+                        ...prev.aportesExtras,
+                        { ...novoAporte, id: Date.now() } // ID único
+                    ]
+                }));
+                // Reset form
+                setNovoAporte({ nome: "", tipo: "recorrente", valor: "", ano: "" });
+            };
+
+            const removerAporteExtra = (id) => {
+                setInputs(prev => ({
+                    ...prev,
+                    aportesExtras: prev.aportesExtras.filter(a => a.id !== id)
+                }));
+            };
+
             const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
             // --- ENGINE DE CÁLCULO ---
             const results = useMemo(() => {
-                // Parsing
+                // Parsing inputs
                 const patrimonioLiq = parseInt(inputs.patrimonio || "0") / 100;
                 const aporteMensal = parseInt(inputs.aporte || "0") / 100;
                 const saqueMensal = parseInt(inputs.saque || "0") / 100;
@@ -186,7 +220,6 @@
                 const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
                 const taxaInflacao = parseFloat(inputs.inflacao) / 100;
                 
-                // Taxa Efetiva Investimentos
                 let taxaMensalInv;
                 if (inputs.considerarInflacao) {
                     const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
@@ -199,8 +232,27 @@
                 const mesesUsufruto = inputs.anosUsufruto * 12;
                 const totalMeses = mesesAcumulacao + mesesUsufruto;
 
-                // --- HELPER: SIMULAÇÃO GENÉRICA ---
-                // Permite injetar eventos (saques extras, custos mensais extras)
+                // Helper para calcular aporte extra do mês corrente
+                const getExtraInflow = (m, isAcc) => {
+                    let inflow = 0;
+                    inputs.aportesExtras.forEach(aporte => {
+                        const valor = parseInt(aporte.valor || "0") / 100;
+                        if (aporte.tipo === 'recorrente') {
+                            // Aplica anualmente (mês 12 de cada ano) apenas na fase de acumulação
+                            if (isAcc && m % 12 === 0) {
+                                inflow += valor;
+                            }
+                        } else if (aporte.tipo === 'unico') {
+                            // Aplica no mês 1 do ano escolhido
+                            const targetMonth = (parseInt(aporte.ano) - 1) * 12 + 1;
+                            if (m === targetMonth) {
+                                inflow += valor;
+                            }
+                        }
+                    });
+                    return inflow;
+                };
+
                 const runSimulation = (extraCostFn = () => 0, extraWithdrawFn = () => 0) => {
                     let saldoLiq = patrimonioLiq;
                     let saldoRest = restrito;
@@ -210,35 +262,39 @@
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
                         
-                        // Rendimento (aplica também sobre saldo negativo para simular custo de dívida/oportunidade)
+                        // Rendimento
                         saldoLiq = saldoLiq * (1 + taxaMensalInv);
                         if (isAcc) saldoRest = saldoRest * (1 + taxaMensalInv);
 
                         // Fluxo Normal
                         if (isAcc) {
                             saldoLiq += aporteMensal;
+                            // Aportes Extras (13º, Bônus, Vendas)
+                            saldoLiq += getExtraInflow(m, true);
                         } else {
-                            if (m === mesesAcumulacao + 1) { // Vesting do Restrito
-                                saldoLiq += saldoRest;
-                                saldoRest = 0;
+                            if (m === mesesAcumulacao + 1) { 
+                                saldoLiq += saldoRest; 
+                                saldoRest = 0; 
                             }
+                            // Na aposentadoria também pode ter entrada extra?
+                            // Por enquanto a lógica acima 'getExtraInflow' trava recorrente em isAcc=true.
+                            // Mas se for 'unico' e o ano for > anosAcumulacao, deveria entrar?
+                            // Vamos permitir 'unico' em qualquer momento:
+                            saldoLiq += getExtraInflow(m, false); // Passando false para travar recorrentes, mas liberar unicos
+                            
                             saldoLiq -= saqueMensal;
                         }
 
-                        // Eventos Extras (Projetos)
-                        saldoLiq -= extraCostFn(m); // Custo mensal (parcela)
-                        saldoLiq -= extraWithdrawFn(m); // Saque pontual (compra à vista/entrada)
+                        // Eventos de Projetos
+                        saldoLiq -= extraCostFn(m); 
+                        saldoLiq -= extraWithdrawFn(m); 
 
-                        // Verificação de Falência
-                        // CORREÇÃO: Na fase de acumulação, permitimos saldo negativo (dívida/alavancagem).
-                        // Na fase de usufruto, saldo negativo significa falência.
+                        // Falência
                         if (saldoLiq < 0) {
                             if (!isAcc) {
-                                // Se estiver na aposentadoria e negativo, o dinheiro acabou.
                                 if (mesFim === null) mesFim = m;
-                                saldoLiq = 0; // Trava em 0 apenas na aposentadoria para não distorcer gráfico visualmente
+                                saldoLiq = 0; 
                             }
-                            // Se estiver acumulando (isAcc), deixa negativo para penalizar o patrimônio final com juros compostos negativos
                         }
 
                         if (m === totalMeses) saldoFinal = saldoLiq;
@@ -246,7 +302,7 @@
                     return { saldoFinal, mesFim };
                 };
 
-                // 1. Simulação Base (Sem Projetos)
+                // Simulação Base
                 let baseData = [];
                 let saldoLiq = patrimonioLiq;
                 let saldoRest = restrito;
@@ -261,8 +317,12 @@
 
                     if (isAcc) {
                         saldoLiq += aporteMensal;
+                        // Soma extras
+                        saldoLiq += getExtraInflow(m, true);
                     } else {
                         if (m === mesesAcumulacao + 1) { saldoLiq += saldoRest; saldoRest = 0; }
+                        // Soma extras pontuais na aposentadoria (ex: venda de imóvel tardia)
+                        saldoLiq += getExtraInflow(m, false); 
                         saldoLiq -= saqueMensal;
                     }
 
@@ -271,7 +331,6 @@
                             if (mesFimBase === null) mesFimBase = m;
                             saldoLiq = 0;
                         }
-                        // Na base, se ficar negativo na acumulação (improvável sem saques extras), mantemos lógica de dívida
                     }
 
                     if (m % 12 === 0 || m === totalMeses) {
@@ -286,60 +345,52 @@
                     }
                 }
 
-                // KPIs Base
                 const montanteNecessario = (taxaMensalInv > 0 
                     ? saqueMensal * (1 - Math.pow(1 + taxaMensalInv, -mesesUsufruto)) / taxaMensalInv 
                     : saqueMensal * mesesUsufruto) * (1 + inputs.margemSeguranca/100);
                 
                 const saldoFinalAcc = baseData.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0;
-                
-                // --- CÁLCULO DE PROJETOS ---
+
+                // Projetos
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
                 const projMes = inputs.projetoAno * 12;
                 
-                // Financiamento: Taxa
                 const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
                 const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
                 const projPrazoMeses = inputs.projetoPrazo * 12;
                 
-                // Cálculo da Parcela (PRICE) - Valor Financiado = Valor - Entrada
                 const valorFinanciado = Math.max(0, projValor - projEntrada);
                 const parcela = valorFinanciado > 0 && taxaFinMensal > 0
                     ? valorFinanciado * (taxaFinMensal * Math.pow(1 + taxaFinMensal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensal, projPrazoMeses) - 1)
                     : valorFinanciado / projPrazoMeses;
 
-                // Cenário 1: À Vista (Paga tudo no mês do projeto)
                 const simAvista = runSimulation(
                     () => 0, 
                     (m) => m === projMes ? projValor : 0
                 );
 
-                // Cenário 2: Financiado (Paga entrada no mês, depois parcelas)
                 const simFinanc = runSimulation(
                     (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
                     (m) => m === projMes ? projEntrada : 0
                 );
 
-                // Comparativo para Gráfico
                 const comparativoProj = [
                     { nome: "Cenário Atual", patrimonioFinal: baseData[baseData.length-1].saldoLiquido, duracao: mesFimBase ? mesFimBase/12 : (totalMeses/12) },
                     { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12) },
                     { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12) }
                 ];
                 
-                // Melhor estratégia
                 let melhorEstrat = "Manter Atual";
-                // Lógica de decisão melhorada para considerar falência
-                const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal; // Penaliza falência
+                const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
                 const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
                 
                 if (finalAvista > finalFinanc && finalAvista > 0) melhorEstrat = "À Vista";
                 else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
                 else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
 
-                // --- MONTE CARLO (Recalculado apenas para base para não travar) ---
-                const simulacoes = 200; // Reduzido levemente para performance
+                // Monte Carlo (Simplificado)
+                const simulacoes = 200;
                 let falhas = 0;
                 for (let s = 0; s < simulacoes; s++) {
                     let p = patrimonioLiq;
@@ -353,9 +404,27 @@
                         p = p * (1+tSim);
                         if(isAcc) {
                             p += (aporteMensal * 12);
+                            
+                            // Adiciona extras na simulação de risco também
+                            // Aproximação anual simples
+                            let extraAnual = 0;
+                            inputs.aportesExtras.forEach(ap => {
+                                const v = parseInt(ap.valor)/100;
+                                if(ap.tipo === 'recorrente') extraAnual += v;
+                                else if(ap.tipo === 'unico' && parseInt(ap.ano) === y) p += v;
+                            });
+                            p += extraAnual;
+
                             pRest = pRest * (1+tSim);
                         } else {
                             if(y === inputs.anosAcumulacao + 1) p += pRest;
+                            
+                            // Extras pontuais na aposentadoria
+                            inputs.aportesExtras.forEach(ap => {
+                                const v = parseInt(ap.valor)/100;
+                                if(ap.tipo === 'unico' && parseInt(ap.ano) === y) p += v;
+                            });
+
                             p -= (saqueMensal * 12);
                         }
                         if(p <= 0) { falhas++; break; }
@@ -372,13 +441,7 @@
                     saldoFinalTotal: baseData[baseData.length - 1].saldoTotal,
                     imobilizado,
                     riscoRuina: (falhas / simulacoes) * 100,
-                    
-                    // Dados Projetos
-                    simAvista,
-                    simFinanc,
-                    comparativoProj,
-                    parcela,
-                    melhorEstrat
+                    simAvista, simFinanc, comparativoProj, parcela, melhorEstrat
                 };
 
             }, [inputs]);
@@ -386,7 +449,6 @@
             return (
                 <div className="min-h-screen pb-10">
                     
-                    {/* HEADER */}
                     <div className="bg-emerald-600 text-white py-8 shadow-lg">
                         <div className="max-w-6xl mx-auto px-4">
                             <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -399,135 +461,120 @@
 
                     <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
                         
-                        {/* LEFT COLUMN: INPUTS */}
+                        {/* LEFT COLUMN */}
                         <div className="lg:col-span-4 space-y-6">
                             
-                            {/* ACUMULAÇÃO */}
                             <Card>
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
                                     <TrendingUp className="h-5 w-5" />
                                     Fase de Acumulação
                                 </h2>
-                                <InputGroup 
-                                    label="Investimentos Líquidos" 
-                                    icon={DollarSign} 
-                                    value={inputs.patrimonio} 
-                                    onChange={v => updateInput("patrimonio", v)} 
-                                    helpText="Dinheiro disponível hoje em corretoras/bancos."
-                                />
-                                <InputGroup 
-                                    label="Aporte Mensal" 
-                                    icon={TrendingUp} 
-                                    value={inputs.aporte} 
-                                    onChange={v => updateInput("aporte", v)} 
-                                />
-                                <InputGroup 
-                                    label="Anos Acumulando" 
-                                    icon={Calendar} 
-                                    type="number"
-                                    prefix=""
-                                    suffix="anos"
-                                    value={inputs.anosAcumulacao} 
-                                    onChange={v => updateInput("anosAcumulacao", v)} 
-                                />
+                                <InputGroup label="Investimentos Líquidos" icon={DollarSign} value={inputs.patrimonio} onChange={v => updateInput("patrimonio", v)} helpText="Dinheiro disponível hoje em corretoras/bancos." />
+                                <InputGroup label="Aporte Mensal" icon={TrendingUp} value={inputs.aporte} onChange={v => updateInput("aporte", v)} />
+                                <InputGroup label="Anos Acumulando" icon={Calendar} type="number" suffix="anos" value={inputs.anosAcumulacao} onChange={v => updateInput("anosAcumulacao", v)} />
                             </Card>
 
-                            {/* OUTROS ATIVOS */}
+                            {/* APORTES EXTRAS (NOVO) */}
+                            <Card>
+                                <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700">
+                                    <Coins className="h-5 w-5" />
+                                    Aportes Extras & Variáveis
+                                </h2>
+                                <p className="text-xs text-slate-500 mb-4">Adicione 13º, Bônus, PLR ou vendas de bens.</p>
+
+                                {/* Lista de Aportes Existentes */}
+                                <div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">
+                                    {inputs.aportesExtras.length === 0 && <p className="text-sm text-center text-gray-400 py-2 italic">Nenhum aporte extra adicionado.</p>}
+                                    {inputs.aportesExtras.map(aporte => (
+                                        <div key={aporte.id} className="flex justify-between items-center bg-indigo-50 p-2 rounded text-sm">
+                                            <div>
+                                                <div className="font-semibold text-indigo-900">{aporte.nome || "Sem nome"}</div>
+                                                <div className="text-xs text-indigo-700">
+                                                    {aporte.tipo === 'recorrente' ? 'Todo ano (Acumulação)' : `No Ano ${aporte.ano}`} • {formatMoney(parseInt(aporte.valor)/100)}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => removerAporteExtra(aporte.id)} className="text-red-400 hover:text-red-600 p-1">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Formulário de Adição */}
+                                <div className="border-t border-gray-100 pt-3">
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <input 
+                                            placeholder="Nome (Ex: PLR)" 
+                                            className="text-sm border-gray-300 rounded p-1.5 w-full"
+                                            value={novoAporte.nome}
+                                            onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})}
+                                        />
+                                        <select 
+                                            className="text-sm border-gray-300 rounded p-1.5 w-full"
+                                            value={novoAporte.tipo}
+                                            onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}
+                                        >
+                                            <option value="recorrente">Recorrente (Anual)</option>
+                                            <option value="unico">Pontual (Único)</option>
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />
+                                        {novoAporte.tipo === 'unico' && (
+                                            <input 
+                                                type="number" 
+                                                placeholder="Ano (Ex: 5)" 
+                                                className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" // match InputGroup height
+                                                value={novoAporte.ano}
+                                                onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})}
+                                            />
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={adicionarAporteExtra}
+                                        className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"
+                                    >
+                                        <Plus size={16} /> Adicionar Aporte
+                                    </button>
+                                </div>
+                            </Card>
+
                             <Card>
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-700">
                                     <Home className="h-5 w-5" />
                                     Outros Ativos
                                 </h2>
-                                <InputGroup 
-                                    label="FGTS / Previdência" 
-                                    icon={Lock} 
-                                    value={inputs.patrimonioRestrito} 
-                                    onChange={v => updateInput("patrimonioRestrito", v)} 
-                                    helpText="Valores que rendem juros, mas só ficam disponíveis na aposentadoria."
-                                />
-                                <InputGroup 
-                                    label="Bens (Casa, Carro)" 
-                                    icon={Home} 
-                                    value={inputs.patrimonioImobilizado} 
-                                    onChange={v => updateInput("patrimonioImobilizado", v)} 
-                                    helpText="Patrimônio que compõe riqueza, mas NÃO gera renda mensal."
-                                />
+                                <InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} />
+                                <InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} />
                             </Card>
 
-                            {/* USUFRUTO */}
                             <Card>
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600">
                                     <TrendingDown className="h-5 w-5" />
                                     Fase de Usufruto
                                 </h2>
-                                <InputGroup 
-                                    label="Saque Mensal Desejado" 
-                                    icon={DollarSign} 
-                                    value={inputs.saque} 
-                                    onChange={v => updateInput("saque", v)} 
-                                />
-                                <InputGroup 
-                                    label="Duração da Aposentadoria" 
-                                    icon={Calendar} 
-                                    type="number"
-                                    prefix=""
-                                    suffix="anos"
-                                    value={inputs.anosUsufruto} 
-                                    onChange={v => updateInput("anosUsufruto", v)} 
-                                />
+                                <InputGroup label="Saque Mensal Desejado" icon={DollarSign} value={inputs.saque} onChange={v => updateInput("saque", v)} />
+                                <InputGroup label="Duração da Aposentadoria" icon={Calendar} type="number" suffix="anos" value={inputs.anosUsufruto} onChange={v => updateInput("anosUsufruto", v)} />
                             </Card>
 
-                            {/* PREMISSAS */}
                             <Card>
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
                                     <ShieldCheck className="h-5 w-5" />
                                     Premissas
                                 </h2>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup 
-                                    label="Retorno Anual" 
-                                    icon={TrendingUp} 
-                                    type="number"
-                                    prefix=""
-                                    suffix="%"
-                                    value={inputs.retornoAno} 
-                                    onChange={v => updateInput("retornoAno", v)} 
-                                    />
-                                    <InputGroup 
-                                    label="Margem Seg." 
-                                    icon={ShieldCheck} 
-                                    type="number"
-                                    prefix=""
-                                    suffix="%"
-                                    value={inputs.margemSeguranca} 
-                                    onChange={v => updateInput("margemSeguranca", v)} 
-                                    />
+                                    <InputGroup label="Retorno Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.retornoAno} onChange={v => updateInput("retornoAno", v)} />
+                                    <InputGroup label="Margem Seg." icon={ShieldCheck} type="number" suffix="%" value={inputs.margemSeguranca} onChange={v => updateInput("margemSeguranca", v)} />
                                 </div>
                                 <div className="mt-4 p-3 bg-slate-100 rounded-lg">
                                     <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={inputs.considerarInflacao}
-                                            onChange={(e) => updateInput('considerarInflacao', e.target.checked)}
-                                            className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5"
-                                        />
+                                        <input type="checkbox" checked={inputs.considerarInflacao} onChange={(e) => updateInput('considerarInflacao', e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5" />
                                         <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
                                     </label>
-                                    
                                     {inputs.considerarInflacao ? (
                                         <div className="mt-3 animate-fade-in">
-                                            <InputGroup 
-                                                label="Inflação Estimada" 
-                                                icon={TrendingDown} 
-                                                type="number"
-                                                prefix=""
-                                                suffix="%"
-                                                value={inputs.inflacao} 
-                                                onChange={v => updateInput("inflacao", v)} 
-                                            />
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                Cálculo usando Taxa Nominal - Inflação.
-                                            </p>
+                                            <InputGroup label="Inflação Estimada" icon={TrendingDown} type="number" suffix="%" value={inputs.inflacao} onChange={v => updateInput("inflacao", v)} />
+                                            <p className="text-xs text-slate-500 mt-1">Cálculo usando Taxa Nominal - Inflação.</p>
                                         </div>
                                     ) : (
                                         <div className="mt-2 text-xs text-slate-500 space-y-1">
@@ -539,45 +586,23 @@
                             </Card>
                         </div>
 
-                        {/* RIGHT COLUMN: RESULTS */}
+                        {/* RIGHT COLUMN */}
                         <div className="lg:col-span-8 space-y-6">
 
-                            {/* TAB NAVIGATION */}
+                            {/* TAB NAV */}
                             <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto">
-                                <button
-                                    onClick={() => setActiveTab('simulacao')}
-                                    className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    Simulação Padrão
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('projetos')}
-                                    className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'projetos' ? 'border-b-2 border-blue-500 text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <Briefcase size={16}/>
-                                    Projetos de Vida (Casa/Sonhos)
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('risco')}
-                                    className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <Activity size={16}/>
-                                    Análise Avançada
-                                </button>
+                                <button onClick={() => setActiveTab('simulacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Simulação Padrão</button>
+                                <button onClick={() => setActiveTab('projetos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'projetos' ? 'border-b-2 border-blue-500 text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}><Briefcase size={16}/> Projetos de Vida (Casa/Sonhos)</button>
+                                <button onClick={() => setActiveTab('risco')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}><Activity size={16}/> Análise Avançada</button>
                             </div>
                             
-                            {/* === TAB 1: SIMULAÇÃO PADRÃO === */}
                             {activeTab === 'simulacao' && (
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${results.sucesso ? 'border-emerald-500' : 'border-red-500'}`}>
                                             <div className="text-sm text-gray-500 uppercase font-semibold">Patrimônio Líquido</div>
-                                            <div className="text-3xl font-bold text-gray-800 mt-1">
-                                                {formatMoney(results.saldoFinalAcumulacao)}
-                                            </div>
-                                            <div className="text-sm mt-2 text-gray-600">
-                                                Meta necessária: <span className="font-medium">{formatMoney(results.montanteNecessario)}</span>
-                                            </div>
+                                            <div className="text-3xl font-bold text-gray-800 mt-1">{formatMoney(results.saldoFinalAcumulacao)}</div>
+                                            <div className="text-sm mt-2 text-gray-600">Meta necessária: <span className="font-medium">{formatMoney(results.montanteNecessario)}</span></div>
                                             <div className={`mt-3 text-sm font-medium ${results.sucesso ? 'text-emerald-600' : 'text-red-600'} flex items-center gap-1`}>
                                                 {results.sucesso ? <ShieldCheck size={16}/> : <AlertCircle size={16}/>}
                                                 {results.sucesso ? "Meta atingida ✅" : "Aporte insuficiente ❌"}
@@ -586,22 +611,13 @@
 
                                         <div className={`p-6 rounded-xl border-l-4 shadow-sm bg-white ${results.durouTudo ? 'border-emerald-500' : 'border-red-500'}`}>
                                             <div className="text-sm text-gray-500 uppercase font-semibold">Longevidade</div>
-                                            <div className="text-3xl font-bold text-gray-800 mt-1">
-                                                {results.durouTudo ? "Vitalício" : `${Math.floor(results.mesFimDinheiro / 12)} anos`}
-                                            </div>
-                                            <div className="text-sm mt-2 text-gray-600">
-                                                {results.durouTudo ? "Seu dinheiro não acaba." : "O dinheiro acaba antes do fim."}
-                                            </div>
+                                            <div className="text-3xl font-bold text-gray-800 mt-1">{results.durouTudo ? "Vitalício" : `${Math.floor(results.mesFimDinheiro / 12)} anos`}</div>
+                                            <div className="text-sm mt-2 text-gray-600">{results.durouTudo ? "Seu dinheiro não acaba." : "O dinheiro acaba antes do fim."}</div>
                                         </div>
                                     </div>
 
                                     <Card className="h-96">
-                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">
-                                            Evolução Patrimonial
-                                            <span className="text-sm font-normal text-slate-500">
-                                                Verde: Liquidez | Cinza: Bens
-                                            </span>
-                                        </h3>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">Evolução Patrimonial <span className="text-sm font-normal text-slate-500">Verde: Liquidez | Cinza: Bens</span></h3>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={results.baseData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                                 <defs>
@@ -624,101 +640,39 @@
                                 </>
                             )}
 
-                            {/* === TAB 2: PROJETOS DE VIDA === */}
                             {activeTab === 'projetos' && (
                                 <div className="space-y-6 animate-fade-in">
                                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl">
-                                        <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
-                                            <Briefcase className="w-5 h-5"/>
-                                            Simular Grande Compra (Imóvel/Sonho)
-                                        </h3>
-                                        <p className="text-sm text-blue-700 mb-4">
-                                            Veja o impacto de comprar um bem antes da aposentadoria. Compare pagar à vista (descapitalizando) ou financiar.
-                                        </p>
-                                        
+                                        <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Grande Compra (Imóvel/Sonho)</h3>
+                                        <p className="text-sm text-blue-700 mb-4">Veja o impacto de comprar um bem antes da aposentadoria. Compare pagar à vista (descapitalizando) ou financiar.</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            <InputGroup 
-                                                label="Valor do Bem" 
-                                                icon={Landmark} 
-                                                value={inputs.projetoValor} 
-                                                onChange={v => updateInput("projetoValor", v)} 
-                                            />
-                                            <InputGroup 
-                                                label="Comprar em (Anos)" 
-                                                icon={Calendar} 
-                                                type="number"
-                                                prefix=""
-                                                suffix="anos"
-                                                value={inputs.projetoAno} 
-                                                onChange={v => updateInput("projetoAno", v)} 
-                                            />
-                                            <div className="hidden lg:block"></div> {/* Spacer */}
-
-                                            <InputGroup 
-                                                label="Entrada Disponível" 
-                                                icon={DollarSign} 
-                                                value={inputs.projetoEntrada} 
-                                                onChange={v => updateInput("projetoEntrada", v)} 
-                                                helpText="Use 100% do valor se for À Vista."
-                                            />
-                                            <InputGroup 
-                                                label="Taxa Financiamento" 
-                                                icon={TrendingUp} 
-                                                type="number"
-                                                prefix=""
-                                                suffix="% a.a"
-                                                value={inputs.projetoTaxaFin} 
-                                                onChange={v => updateInput("projetoTaxaFin", v)} 
-                                            />
-                                            <InputGroup 
-                                                label="Prazo Financiamento" 
-                                                icon={Calendar} 
-                                                type="number"
-                                                prefix=""
-                                                suffix="anos"
-                                                value={inputs.projetoPrazo} 
-                                                onChange={v => updateInput("projetoPrazo", v)} 
-                                            />
+                                            <InputGroup label="Valor do Bem" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
+                                            <InputGroup label="Comprar em (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} />
+                                            <div className="hidden lg:block"></div>
+                                            <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% do valor se for À Vista." />
+                                            <InputGroup label="Taxa Financiamento" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} />
+                                            <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
                                         </div>
                                     </div>
 
-                                    {/* RESULTS COMPARISON */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {results.comparativoProj.map((cenario, idx) => (
                                             <Card key={idx} className={`border-t-4 ${idx===0 ? 'border-gray-400' : idx===1 ? 'border-emerald-500' : 'border-blue-500'} relative overflow-hidden`}>
-                                                {/* Badge Melhor Opção */}
                                                 {cenario.nome.includes(results.melhorEstrat) && idx > 0 && (
-                                                    <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">
-                                                        MELHOR MATEMATICAMENTE
-                                                    </div>
+                                                    <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR MATEMATICAMENTE</div>
                                                 )}
-                                                
                                                 <h4 className="font-bold text-gray-700 text-lg mb-2">{cenario.nome}</h4>
-                                                
                                                 <div className="text-sm text-gray-500">Patrimônio Final (Herança)</div>
-                                                <div className={`text-xl font-bold ${cenario.patrimonioFinal > 0 ? 'text-gray-800' : 'text-red-600'}`}>
-                                                    {formatMoney(cenario.patrimonioFinal)}
-                                                </div>
-
+                                                <div className={`text-xl font-bold ${cenario.patrimonioFinal > 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatMoney(cenario.patrimonioFinal)}</div>
                                                 <div className="mt-4 pt-4 border-t border-gray-100">
                                                     <div className="text-sm text-gray-500">Duração do Plano</div>
-                                                    <div className="font-medium text-gray-800">
-                                                        {cenario.duracao >= (inputs.anosAcumulacao + inputs.anosUsufruto) 
-                                                            ? "Até o fim da vida" 
-                                                            : `Acaba no ano ${Math.floor(cenario.duracao)}`}
-                                                    </div>
+                                                    <div className="font-medium text-gray-800">{cenario.duracao >= (inputs.anosAcumulacao + inputs.anosUsufruto) ? "Até o fim da vida" : `Acaba no ano ${Math.floor(cenario.duracao)}`}</div>
                                                 </div>
-
-                                                {idx === 2 && (
-                                                    <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                                                        Parcela estimada: <strong>{formatMoney(results.parcela)}</strong>
-                                                    </div>
-                                                )}
+                                                {idx === 2 && <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">Parcela estimada: <strong>{formatMoney(results.parcela)}</strong></div>}
                                             </Card>
                                         ))}
                                     </div>
 
-                                    {/* CHART COMPARISON */}
                                     <Card className="h-80">
                                         <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Saldo Final (Legado)</h3>
                                         <ResponsiveContainer width="100%" height="100%">
@@ -727,43 +681,27 @@
                                                 <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} />
                                                 <YAxis dataKey="nome" type="category" width={100} />
                                                 <Tooltip formatter={(value) => formatMoney(value)} />
-                                                <Bar dataKey="patrimonioFinal" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                                                </Bar>
+                                                <Bar dataKey="patrimonioFinal" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </Card>
 
                                     <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2">
                                         <Info size={20} className="shrink-0"/>
-                                        <p>
-                                            <strong>Por que o saldo cresceu tanto?</strong><br/>
-                                            O "Patrimônio Final" é o valor estimado <strong>após {inputs.anosUsufruto} anos de aposentadoria</strong> (Legado/Herança). 
-                                            Se o rendimento dos investimentos supera seus saques mensais, a diferença (sobra) continua rendendo juros compostos por décadas, transformando o valor inicial (ex: R$ 1,7 mi) em uma grande fortuna final (ex: R$ 16 mi).
-                                            Isso indica que sua taxa de saque é muito segura!
-                                        </p>
+                                        <p><strong>Por que o saldo cresceu tanto?</strong><br/>O "Patrimônio Final" é o valor estimado <strong>após {inputs.anosUsufruto} anos de aposentadoria</strong> (Legado/Herança). Se o rendimento dos investimentos supera seus saques mensais, a diferença (sobra) continua rendendo juros compostos por décadas.</p>
                                     </div>
                                 </div>
                             )}
 
-                            {/* === TAB 3: RISCO === */}
                             {activeTab === 'risco' && (
                                 <div className="space-y-6 animate-fade-in">
                                     <Card className="border-l-4 border-l-purple-500">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                                    <Activity className="text-purple-600" />
-                                                    Risco de Ruína (Monte Carlo)
-                                                </h3>
-                                                <p className="text-sm text-gray-600 mt-1">
-                                                    Probabilidade do dinheiro acabar considerando a volatilidade do mercado.
-                                                </p>
+                                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Activity className="text-purple-600" /> Risco de Ruína (Monte Carlo)</h3>
+                                                <p className="text-sm text-gray-600 mt-1">Probabilidade do dinheiro acabar considerando a volatilidade do mercado.</p>
                                             </div>
-                                            <div className="text-right">
-                                                <span className={`text-4xl font-bold ${results.riscoRuina < 5 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                    {results.riscoRuina.toFixed(1)}%
-                                                </span>
-                                            </div>
+                                            <div className="text-right"><span className={`text-4xl font-bold ${results.riscoRuina < 5 ? 'text-emerald-600' : 'text-red-600'}`}>{results.riscoRuina.toFixed(1)}%</span></div>
                                         </div>
                                     </Card>
                                 </div>
