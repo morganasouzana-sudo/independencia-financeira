@@ -53,7 +53,7 @@
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -144,6 +144,7 @@
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
                 projetoPrazo: 30,
+                projetoAluguelAtual: "0", // NOVO: Aluguel que deixa de pagar
 
                 // Sensibilidade
                 sensAporteExtra: "50000", 
@@ -155,10 +156,14 @@
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v7');
+                let saved = localStorage.getItem('financial_plan_v8'); // Bump version
+                
                 if (!saved) {
-                    saved = localStorage.getItem('financial_plan_v6') || localStorage.getItem('financial_plan_v5') || localStorage.getItem('financial_plan_v4');
+                    saved = localStorage.getItem('financial_plan_v7') || 
+                            localStorage.getItem('financial_plan_v6') || 
+                            localStorage.getItem('financial_plan_v5');
                 }
+
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
@@ -169,7 +174,7 @@
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('financial_plan_v7', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v8', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
@@ -190,7 +195,7 @@
 
             // --- ENGINE DE CÁLCULO ---
             const results = useMemo(() => {
-                // Parsing
+                // Parsing inputs
                 const patrimonioLiq = parseInt(inputs.patrimonio || "0") / 100;
                 const aporteMensal = parseInt(inputs.aporte || "0") / 100;
                 const saqueMensal = parseInt(inputs.saque || "0") / 100;
@@ -199,6 +204,7 @@
                 const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
                 const taxaInflacao = parseFloat(inputs.inflacao) / 100;
                 
+                // Taxa Real Base
                 let taxaMensalInv;
                 if (inputs.considerarInflacao) {
                     const taxaReal = ((1 + taxaRetorno) / (1 + taxaInflacao)) - 1;
@@ -215,6 +221,7 @@
                     ? saqueMensal * (1 - Math.pow(1 + taxaMensalInv, -mesesUsufruto)) / taxaMensalInv 
                     : saqueMensal * mesesUsufruto) * (1 + inputs.margemSeguranca/100);
 
+                // Helper Aportes Extras
                 const getExtraInflow = (m, isAcc) => {
                     let inflow = 0;
                     inputs.aportesExtras.forEach(aporte => {
@@ -229,13 +236,15 @@
                     return inflow;
                 };
 
+                // --- Função Genérica de Simulação ---
                 const runSimulation = (params = {}) => {
                     const {
                         pInicial = patrimonioLiq,
                         apMensal = aporteMensal,
                         txMensal = taxaMensalInv,
                         extraCostFn = () => 0,
-                        extraWithdrawFn = () => 0
+                        extraWithdrawFn = () => 0,
+                        extraIncomeFn = () => 0 // NOVO: Renda Extra (Ex: Aluguel economizado)
                     } = params;
 
                     let saldoLiq = pInicial;
@@ -253,6 +262,7 @@
                         saldoLiq = saldoLiq * (1 + txMensal);
                         if (isAcc) saldoRest = saldoRest * (1 + txMensal);
 
+                        // Fluxo Base
                         if (isAcc) {
                             saldoLiq += apMensal;
                             saldoLiq += getExtraInflow(m, true);
@@ -265,18 +275,22 @@
                             saldoLiq -= saqueMensal;
                         }
 
+                        // Eventos de Projetos e Sensibilidade
                         saldoLiq -= extraCostFn(m); 
-                        saldoLiq -= extraWithdrawFn(m); 
+                        saldoLiq -= extraWithdrawFn(m);
+                        saldoLiq += extraIncomeFn(m); // Soma economia de aluguel
 
                         if (!atingiuLiberdadeEm && (saldoLiq + (isAcc?saldoRest:0)) >= montanteNecessario) {
                             atingiuLiberdadeEm = m;
                         }
 
+                        // Falência
                         if (saldoLiq < 0) {
                             if (!isAcc) {
                                 if (mesFim === null) mesFim = m;
                                 saldoLiq = 0; 
                             }
+                            // Na acumulação, saldo negativo acumula juros de dívida (tratado implicitamente pela taxa positiva sobre saldo negativo na linha de rendimento acima - para simplificar, assumimos que juros da divida = juros investimento, o que é otimista, mas serve para comparação básica de fluxo)
                         }
 
                         if (m === totalMeses) saldoFinal = saldoLiq;
@@ -295,6 +309,7 @@
                     return { saldoFinal, mesFim, data, atingiuLiberdadeEm };
                 };
 
+                // 1. Simulação Base
                 const simBase = runSimulation();
                 
                 const saldoFinalAcumulacao = simBase.data.find(d => d.mes === mesesAcumulacao)?.saldoTotal - imobilizado || 0;
@@ -311,7 +326,6 @@
                 });
                 
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
-                // Garantir que não quebre se o total for negativo por algum motivo extremo
                 const pieData = [
                     { name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' },
                     { name: 'Juros', value: totalJuros, color: '#10b981' }
@@ -365,6 +379,7 @@
                 // Projetos
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
+                const projAluguel = parseInt(inputs.projetoAluguelAtual || "0") / 100; // NOVO
                 const projMes = inputs.projetoAno * 12;
                 const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
                 const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
@@ -374,26 +389,53 @@
                     ? valorFinanciado * (taxaFinMensal * Math.pow(1 + taxaFinMensal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensal, projPrazoMeses) - 1)
                     : valorFinanciado / projPrazoMeses;
 
+                // Simulação À Vista: Perde capital, mas ganha fluxo do aluguel economizado
                 const simAvista = runSimulation({
-                    extraWithdrawFn: (m) => m === projMes ? projValor : 0
-                });
-                const simFinanc = runSimulation({
-                    extraCostFn: (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
-                    extraWithdrawFn: (m) => m === projMes ? projEntrada : 0
+                    extraWithdrawFn: (m) => m === projMes ? projValor : 0,
+                    extraIncomeFn: (m) => m > projMes ? projAluguel : 0
                 });
 
-                const comparativoProj = [
-                    { nome: "Cenário Atual", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12) },
-                    { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12) },
-                    { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12) }
-                ];
-                
+                // Simulação Financiada: Paga parcela, mas ganha fluxo do aluguel economizado
+                const simFinanc = runSimulation({
+                    extraCostFn: (m) => (m > projMes && m <= projMes + projPrazoMeses) ? parcela : 0,
+                    extraWithdrawFn: (m) => m === projMes ? projEntrada : 0,
+                    extraIncomeFn: (m) => m > projMes ? projAluguel : 0
+                });
+
+                // Impacto Mensal
+                // À Vista: + Aluguel (economia)
+                // Financiado: + Aluguel - Parcela
+                const impactoAvista = projAluguel;
+                const impactoFinanc = projAluguel - parcela;
+
+                // Explicação do resultado
+                let explicacaoProj = "";
                 let melhorEstrat = "Manter Atual";
+                
+                // Critério: Quem tem maior saldo final (considerando que se quebrou antes, perdeu)
+                const finalBase = simBase.mesFim ? -1 : simBase.saldoFinal;
                 const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
                 const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
-                if (finalAvista > finalFinanc && finalAvista > 0) melhorEstrat = "À Vista";
-                else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
-                else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
+
+                if (finalAvista > finalFinanc && finalAvista > finalBase) {
+                    melhorEstrat = "Compra à Vista";
+                    explicacaoProj = "A economia do aluguel investida superou a perda de rendimento do capital gasto.";
+                } else if (finalFinanc > finalAvista && finalFinanc > finalBase) {
+                    melhorEstrat = "Financiar";
+                    explicacaoProj = "Apesar dos juros da dívida, manter seu capital investido rendeu mais do que descapitalizar.";
+                } else if (finalBase > finalAvista && finalBase > finalFinanc) {
+                    melhorEstrat = "Aluguel (Cenário Atual)";
+                    explicacaoProj = "O custo do imóvel (perda de juros ou dívida) é maior que a economia de aluguel. Financeiramente, alugar compensa mais.";
+                } else {
+                    melhorEstrat = "Inviável (Risco de Quebra)";
+                    explicacaoProj = "A compra do imóvel compromete a sustentabilidade do plano no longo prazo.";
+                }
+
+                const comparativoProj = [
+                    { nome: "Aluguel (Atual)", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12), impacto: 0 },
+                    { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12), impacto: impactoAvista },
+                    { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12), impacto: impactoFinanc }
+                ];
 
                 // Crise
                 let saldoCrise = saldoFinalAcumulacao * 0.7; // -30%
@@ -453,14 +495,14 @@
                     imobilizado,
                     sobreviveuCrise,
                     riscoRuina: (falhas / simulacoes) * 100,
-                    simAvista, simFinanc, comparativoProj, parcela, melhorEstrat,
+                    simAvista, simFinanc, comparativoProj, parcela, melhorEstrat, explicacaoProj,
                     marcos,
                     simSensAporte, simSensTaxa, inflacaoData, 
                     tempoLiberdadeBase: simBase.atingiuLiberdadeEm,
                     tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm,
                     tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm,
                     pieData,
-                    totalInvestido, totalJuros // Exportando para exibir no cartão
+                    totalInvestido, totalJuros
                 };
 
             }, [inputs]);
@@ -776,25 +818,61 @@
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <InputGroup label="Valor do Bem" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                                             <InputGroup label="Comprar em (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} />
-                                            <div className="hidden lg:block"></div>
+                                            <InputGroup label="Aluguel Atual (Economizado ao comprar)" icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText="Valor que deixará de pagar ao ter o imóvel." />
                                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% do valor se for À Vista." />
                                             <InputGroup label="Taxa Financiamento" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} />
                                             <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
                                         </div>
                                     </div>
 
+                                    <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2 border border-yellow-200">
+                                        <Info size={20} className="shrink-0"/>
+                                        <p>
+                                            <strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/>
+                                            <span className="text-xs opacity-75 mt-1 block">
+                                                *O cálculo considera que o aluguel economizado é reinvestido ou usado para abater a parcela.
+                                            </span>
+                                        </p>
+                                    </div>
+
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {results.comparativoProj.map((cenario, idx) => (
-                                            <Card key={idx} className={`border-t-4 ${idx===0 ? 'border-gray-400' : idx===1 ? 'border-emerald-500' : 'border-blue-500'} relative overflow-hidden`}>
-                                                {cenario.nome.includes(results.melhorEstrat) && idx > 0 && <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR MATEMATICAMENTE</div>}
-                                                <h4 className="font-bold text-gray-700 text-lg mb-2">{cenario.nome}</h4>
-                                                <div className="text-sm text-gray-500">Patrimônio Final (Herança)</div>
-                                                <div className={`text-xl font-bold ${cenario.patrimonioFinal > 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatMoney(cenario.patrimonioFinal)}</div>
-                                                <div className="mt-4 pt-4 border-t border-gray-100">
-                                                    <div className="text-sm text-gray-500">Duração do Plano</div>
-                                                    <div className="font-medium text-gray-800">{cenario.duracao >= (inputs.anosAcumulacao + inputs.anosUsufruto) ? "Até o fim da vida" : `Acaba no ano ${Math.floor(cenario.duracao)}`}</div>
+                                            <Card key={idx} className={`border-t-4 ${idx===0 ? 'border-gray-400' : idx===1 ? 'border-emerald-500' : 'border-blue-500'} relative overflow-hidden flex flex-col`}>
+                                                {cenario.nome.includes(results.melhorEstrat) && idx >= 0 && (
+                                                    <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">
+                                                        MELHOR OPÇÃO
+                                                    </div>
+                                                )}
+                                                
+                                                <h4 className="font-bold text-gray-700 text-lg mb-1">{cenario.nome}</h4>
+                                                
+                                                <div className="mt-2 mb-4">
+                                                    <div className="text-xs text-gray-500 uppercase font-semibold">Impacto Mensal</div>
+                                                    <div className={`text-lg font-bold ${cenario.impacto >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                        {cenario.impacto > 0 ? '+' : ''}{formatMoney(cenario.impacto)}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">no fluxo de caixa</div>
                                                 </div>
-                                                {idx === 2 && <div className="mt-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">Parcela estimada: <strong>{formatMoney(results.parcela)}</strong></div>}
+
+                                                <div className="pt-4 border-t border-gray-100 mt-auto">
+                                                    <div className="text-xs text-gray-500 uppercase font-semibold">Longevidade do Plano</div>
+                                                    <div className="font-medium text-gray-800 text-lg">
+                                                        {cenario.duracao >= (inputs.anosAcumulacao + inputs.anosUsufruto) 
+                                                            ? "Vitalício ✅" 
+                                                            : `Acaba em ${Math.floor(cenario.duracao)} anos ⚠️`}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="pt-2 mt-2 border-t border-gray-50 flex justify-between items-center">
+                                                    <span className="text-xs text-gray-400">Legado Final:</span>
+                                                    <span className="text-xs font-semibold text-gray-600">{formatMoney(cenario.patrimonioFinal)}</span>
+                                                </div>
+
+                                                {idx === 2 && (
+                                                    <div className="mt-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                                        Parcela: <strong>{formatMoney(results.parcela)}</strong>
+                                                    </div>
+                                                )}
                                             </Card>
                                         ))}
                                     </div>
