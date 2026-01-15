@@ -691,7 +691,7 @@
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><ListFilter size={14} className="text-slate-500"/></div>
                             </div>
                         </div>
-                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
+                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6">
                             {results.marcos.map((marco, idx) => (
                                 <div key={idx} className={`ml-6 relative ${!marco.atingidoEm ? 'opacity-50' : ''}`}>
                                     <span className={`absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white ${marco.atingidoEm ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
