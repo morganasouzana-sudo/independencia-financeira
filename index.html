@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Planejamento Financeiro</title>
+
+<style>
+body { font-family: Arial, sans-serif; background:#f4f6f8; padding:20px; }
+.container { max-width:900px; margin:auto; background:#fff; padding:25px; border-radius:10px; }
+h1 { color:#34495e; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:15px; }
+input { padding:8px; border-radius:6px; border:1px solid #ccc; }
+button { padding:12px; margin-top:15px; width:100%; background:#2ecc71; color:#fff; border:none; border-radius:8px; cursor:pointer; }
+.card { background:#ecf0f1; padding:20px; border-radius:8px; margin-top:20px; }
+.ok { border-left:6px solid #2ecc71; }
+.no { border-left:6px solid #e74c3c; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Planejamento de Independência Financeira</h1>
+
+<h3>Entradas principais</h3>
+<div class="grid">
+  <input id="patrimonio" placeholder="Patrimônio atual (R$)">
+  <input id="aporte" placeholder="Aporte mensal (R$)">
+  <input id="anosAcc" type="number" placeholder="Anos de acumulação">
+  <input id="saque" placeholder="Saque mensal desejado (R$)">
+  <input id="anosUsu" type="number" placeholder="Anos de usufruto">
+  <input id="retorno" type="number" placeholder="Retorno anual (%)">
+  <input id="margem" type="number" placeholder="Margem de segurança (%)" value="20">
+</div>
+
+<h3>Modo de cálculo</h3>
+<label><input type="radio" name="modo" value="real" checked> Valores reais</label><br>
+<label><input type="radio" name="modo" value="nominal"> Valores nominais</label>
+
+<div id="inflacaoBox" style="display:none;margin-top:10px;">
+  <input id="inflacao" type="number" placeholder="Inflação anual (%)" value="4">
+</div>
+
+<button onclick="simular()">Simular planejamento</button>
+
+<div id="resumo" class="card"></div>
+
+<button onclick="window.open('detalhes.html','_blank')">
+  🔍 Ver análise detalhada
+</button>
+
+</div>
+
+<script>
+function moeda(v){ return Number((v||"").replace(/\./g,"").replace(",",".")||0); }
+
+document.querySelectorAll("input[name='modo']").forEach(r=>{
+  r.onchange=()=>inflacaoBox.style.display =
+    r.value==="nominal" && r.checked ? "block":"none";
+});
+
+function simular(){
+  const dados = {
+    patrimonio: moeda(patrimonio.value),
+    aporte: moeda(aporte.value),
+    anosAcc:+anosAcc.value,
+    saque: moeda(saque.value),
+    anosUsu:+anosUsu.value,
+    retorno:+retorno.value/100,
+    margem:+margem.value/100,
+    modo:document.querySelector("input[name='modo']:checked").value,
+    inflacao:+(inflacao.value||0)/100
+  };
+
+  let p = dados.patrimonio;
+  for(let i=1;i<=dados.anosAcc;i++){
+    p = p*(1+dados.retorno)+dados.aporte*12;
+  }
+
+  const base = (dados.saque*12)/0.04;
+  const necessario = base*(1+dados.margem);
+  let sobra = p-necessario;
+
+  let pUsu = p;
+  let saqueAno = dados.saque;
+  let durou=true;
+
+  for(let i=1;i<=dados.anosUsu;i++){
+    if(dados.modo==="nominal") saqueAno*=(1+dados.inflacao);
+    pUsu = pUsu*(1+dados.retorno)-saqueAno*12;
+    if(pUsu<=0){ durou=false; break; }
+  }
+
+  resumo.className="card "+(sobra>=0 && durou?"ok":"no");
+  resumo.innerHTML=`
+    <h3>Resumo do plano</h3>
+    <p>Patrimônio estimado: <strong>R$ ${p.toLocaleString("pt-BR")}</strong></p>
+    <p>Patrimônio necessário (com margem): 
+       <strong>R$ ${necessario.toLocaleString("pt-BR")}</strong></p>
+    <p>${sobra>=0?"✅ Sobra":"❌ Falta"} 
+       <strong>R$ ${Math.abs(sobra).toLocaleString("pt-BR")}</strong></p>
+    <p>${durou?"O dinheiro dura todo o usufruto":"O dinheiro acaba antes do fim"}</p>
+    <p><em>${dados.modo==="real"
+      ?"Valores em poder de compra de hoje."
+      :"Valores nominais, saque cresce com inflação."}</em></p>
+  `;
+
+  localStorage.setItem("plano",JSON.stringify({dados,p}));
+}
+</script>
+
+</body>
+</html>
