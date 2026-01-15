@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Análise Detalhada</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family:Arial; background:#f4f6f8; padding:20px; }
+.container { max-width:1000px; margin:auto; background:#fff; padding:25px; border-radius:10px; }
+.card { background:#ecf0f1; padding:20px; border-radius:8px; margin-top:20px; }
+canvas { margin-top:30px; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Análise detalhada do plano</h1>
+
+<div class="card" id="risco"></div>
+<div class="card" id="crise"></div>
+<div class="card" id="planos"></div>
+
+<canvas id="grafico"></canvas>
+
+</div>
+
+<script>
+const plano = JSON.parse(localStorage.getItem("plano"));
+if(!plano){ document.body.innerHTML="Nenhum plano encontrado."; }
+
+const d = plano.dados;
+let p0 = d.patrimonio;
+
+// ===== GRÁFICO =====
+let labels=[],dados=[];
+let p=p0;
+for(let i=1;i<=d.anosAcc;i++){
+  p=p*(1+d.retorno)+d.aporte*12;
+  labels.push("Ano "+i);
+  dados.push(p);
+}
+new Chart(grafico,{
+  type:"line",
+  data:{labels,datasets:[{label:"Patrimônio",data:dados,borderWidth:2}]}
+});
+
+// ===== RISCO DE RUÍNA =====
+let falhas=0,sim=300;
+for(let s=0;s<sim;s++){
+  let p=p0;
+  for(let i=1;i<=d.anosAcc;i++){
+    let r=d.retorno+(Math.random()-0.5)*0.2;
+    p=p*(1+r)+d.aporte*12;
+  }
+  let saqueAno=d.saque;
+  for(let i=1;i<=d.anosUsu;i++){
+    if(d.modo==="nominal") saqueAno*=(1+d.inflacao);
+    let r=d.retorno+(Math.random()-0.5)*0.2;
+    p=p*(1+r)-saqueAno*12;
+    if(p<=0){ falhas++; break; }
+  }
+}
+risco.innerHTML=`
+<h3>🧮 Risco de ruína</h3>
+<p>Probabilidade estimada: <strong>${(falhas/sim*100).toFixed(1)}%</strong></p>
+`;
+
+// ===== CRISE =====
+let pCrise=p;
+pCrise*=0.7;
+let durou=true;
+for(let i=1;i<=d.anosUsu;i++){
+  pCrise=pCrise*(1+d.retorno)-d.saque*12;
+  if(pCrise<=0){ durou=false; break; }
+}
+crise.innerHTML=`
+<h3>🔄 Simulação de crise</h3>
+<p>${durou?"Sobrevive a uma crise severa":"Quebra se a crise vier cedo"}</p>
+`;
+
+// ===== PLANO A x B =====
+let anosB=Math.max(1,d.anosAcc-2);
+let pB=p0;
+for(let i=1;i<=anosB;i++){
+  pB=pB*(1+d.retorno)+d.aporte*12;
+}
+planos.innerHTML=`
+<h3>📊 Plano A x Plano B</h3>
+<p>Plano A (${d.anosAcc} anos): R$ ${p.toLocaleString("pt-BR")}</p>
+<p>Plano B (${anosB} anos): R$ ${pB.toLocaleString("pt-BR")}</p>
+`;
+</script>
+
+</body>
+</html>
