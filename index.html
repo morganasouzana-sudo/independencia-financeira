@@ -448,20 +448,57 @@
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
                 const pieData = [{ name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' }, { name: 'Juros', value: totalJuros, color: '#10b981' }];
 
+                // --- MARCOS DINÂMICOS (ATUALIZADO) ---
+                const formatLabel = (v) => {
+                    if (v >= 1000000) {
+                        const m = v / 1000000;
+                        return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões");
+                    }
+                    return (v / 1000) + "k";
+                };
+
                 let marcosList = [];
                 const tetoMarcos = Math.max(montanteNecessario * 1.2, saldoFinalAcumulacao, 1000000);
-                if (milestoneMode === '100k') { for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: (v/1000) + "k" }); }
-                else if (milestoneMode === '500k') { for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: (v/1000) + "k" }); }
-                else if (milestoneMode === '1m') { for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: (v/1000000) + " Milhão" }); }
-                else {
-                    marcosList = [{ valor: 100000, nome: "100 Mil" }, { valor: 200000, nome: "200 Mil" }, { valor: 300000, nome: "300 Mil" }, { valor: 500000, nome: "Meio Milhão" }, { valor: 750000, nome: "750 Mil" }, { valor: 1000000, nome: "1º Milhão", especial: true }, { valor: 1500000, nome: "1.5 Milhão" }, { valor: 2000000, nome: "2 Milhões" }, { valor: 3000000, nome: "3 Milhões" }, { valor: 5000000, nome: "5 Milhões" }, { valor: 10000000, nome: "10 Milhões" }];
+                
+                if (milestoneMode === '100k') { 
+                    for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else if (milestoneMode === '500k') { 
+                    for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else if (milestoneMode === '1m') { 
+                    for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else {
+                    // Padrão Inteligente com saltos maiores
+                    marcosList = [
+                        { valor: 100000, nome: "100 Mil" },
+                        { valor: 500000, nome: "Meio Milhão" },
+                        { valor: 1000000, nome: "1º Milhão", especial: true },
+                        { valor: 2000000, nome: "2 Milhões" },
+                        { valor: 5000000, nome: "5 Milhões" },
+                        { valor: 10000000, nome: "10 Milhões" }
+                    ];
                 }
+
                 const addIfMissing = (val, name, props={}) => {
-                    if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) marcosList.push({ valor: val, nome: name, ...props });
-                    else { const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000); if (props.alvo) { existing.nome = name; existing.alvo = true; } }
+                    if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) {
+                        marcosList.push({ valor: val, nome: name, ...props });
+                    } else {
+                        // Se já existe perto, atualiza nome se for importante (alvo ou especial)
+                        const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000);
+                        if (props.alvo) {
+                            existing.nome = name; 
+                            existing.alvo = true;
+                        }
+                        if (props.especial) {
+                            existing.especial = true;
+                        }
+                    }
                 };
+                
                 addIfMissing(montanteNecessario, "Liberdade Financeira", { alvo: true });
-                if (milestoneMode !== 'padrao') addIfMissing(1000000, "1º Milhão", { especial: true });
+                // Garante que o 1º Milhão está marcado como especial mesmo em modos dinâmicos se cair na malha
+                const umMilhao = marcosList.find(m => Math.abs(m.valor - 1000000) < 1000);
+                if(umMilhao) umMilhao.especial = true;
+
                 marcosList.sort((a,b) => a.valor - b.valor);
                 marcosList = marcosList.map(m => ({ ...m, atingidoEm: null }));
                 simBase.data.forEach(ponto => {
