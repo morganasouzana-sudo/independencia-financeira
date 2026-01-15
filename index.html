@@ -70,37 +70,12 @@
 
         /* Estilos de Impressão */
         @media print {
-            /* Configuração da Página: Margens e Tamanho */
-            @page {
-                size: A4;
-                margin: 15mm; /* Margem definida via código */
-            }
-
-            body { 
-                background: white; 
-                margin: 0;
-                padding: 0;
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important;
-            }
-
+            @page { size: A4; margin: 15mm; }
+            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            
-            .card-print { 
-                box-shadow: none !important; 
-                border: 1px solid #ddd !important;
-                break-inside: avoid; /* Evita quebrar gráficos no meio da página */
-                margin-bottom: 20px;
-                page-break-inside: avoid;
-            }
-            
-            .section-break { 
-                margin-top: 20px; 
-                border-top: 2px solid #eee; 
-                padding-top: 20px; 
-                break-before: auto;
-            }
+            .card-print { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; margin-bottom: 20px; page-break-inside: avoid; }
+            .section-break { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; break-before: auto; }
         }
         .print-only { display: none; }
     </style>
@@ -653,10 +628,10 @@
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
 
                 const comparativoHibrido = [
-                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel' },
-                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra' },
-                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true },
-                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra' }
+                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim },
+                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim },
+                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim },
+                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim }
                 ];
                 
                 const simAvista = runSimulation({
@@ -691,9 +666,9 @@
                 }
 
                 const comparativoProj = [
-                    { nome: "Aluguel (Atual)", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12), impacto: 0 },
-                    { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12), impacto: impactoAvista },
-                    { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12), impacto: impactoFinanc }
+                    { nome: "Aluguel (Atual)", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12), impacto: 0, mesFim: simBase.mesFim },
+                    { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12), impacto: impactoAvista, mesFim: simAvista.mesFim },
+                    { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12), impacto: impactoFinanc, mesFim: simFinanc.mesFim }
                 ];
 
                 let saldoCrise = saldoFinalAcumulacao * 0.7; 
@@ -950,7 +925,11 @@
                                     </div>
                                     <div>
                                         <div className="text-xs text-gray-500 mt-2">Patrimônio Final (Legado)</div>
-                                        <div className={`text-lg font-bold ${cenario.valor > 0 ? 'text-gray-800' : 'text-red-600'}`}>{formatMoney(cenario.valor)}</div>
+                                        {cenario.valor > 0 || !cenario.mesFim ? (
+                                            <div className="text-lg font-bold text-gray-800">{formatMoney(cenario.valor)}</div>
+                                        ) : (
+                                            <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
+                                        )}
                                         <div className="mt-2 text-xs">
                                             {cenario.type === 'aluguel' ? <span className="text-gray-400">-</span> : 
                                                 cenario.quitacao 
