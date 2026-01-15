@@ -194,15 +194,15 @@
                 <div className="grid grid-cols-4 gap-y-4 gap-x-8">
                     <div>
                         <span className="block text-slate-400 text-xs">Patrimônio Atual</span>
-                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio))}</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio || 0) / 100)}</span>
                     </div>
                     <div>
                         <span className="block text-slate-400 text-xs">Aporte Mensal</span>
-                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte))}</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte || 0) / 100)}</span>
                     </div>
                     <div>
                         <span className="block text-slate-400 text-xs">Saque Desejado</span>
-                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.saque))}</span>
+                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.saque || 0) / 100)}</span>
                     </div>
                     <div>
                         <span className="block text-slate-400 text-xs">Rentabilidade</span>
@@ -222,7 +222,7 @@
                     </div>
                     <div>
                         <span className="block text-slate-400 text-xs">Outros Ativos</span>
-                        <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonioRestrito) + parseInt(inputs.patrimonioImobilizado))}</span>
+                        <span className="font-semibold text-slate-800">{formatMoney((parseInt(inputs.patrimonioRestrito || 0) + parseInt(inputs.patrimonioImobilizado || 0)) / 100)}</span>
                     </div>
                 </div>
             </div>
@@ -691,7 +691,7 @@
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><ListFilter size={14} className="text-slate-500"/></div>
                             </div>
                         </div>
-                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6">
+                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
                             {results.marcos.map((marco, idx) => (
                                 <div key={idx} className={`ml-6 relative ${!marco.atingidoEm ? 'opacity-50' : ''}`}>
                                     <span className={`absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white ${marco.atingidoEm ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
