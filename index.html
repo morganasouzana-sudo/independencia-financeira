@@ -53,7 +53,7 @@
         import React, { useState, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -210,7 +210,7 @@
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
                         
-                        // Rendimento
+                        // Rendimento (aplica também sobre saldo negativo para simular custo de dívida/oportunidade)
                         saldoLiq = saldoLiq * (1 + taxaMensalInv);
                         if (isAcc) saldoRest = saldoRest * (1 + taxaMensalInv);
 
@@ -229,10 +229,16 @@
                         saldoLiq -= extraCostFn(m); // Custo mensal (parcela)
                         saldoLiq -= extraWithdrawFn(m); // Saque pontual (compra à vista/entrada)
 
-                        // Quebra
+                        // Verificação de Falência
+                        // CORREÇÃO: Na fase de acumulação, permitimos saldo negativo (dívida/alavancagem).
+                        // Na fase de usufruto, saldo negativo significa falência.
                         if (saldoLiq < 0) {
-                            if (mesFim === null) mesFim = m;
-                            saldoLiq = 0;
+                            if (!isAcc) {
+                                // Se estiver na aposentadoria e negativo, o dinheiro acabou.
+                                if (mesFim === null) mesFim = m;
+                                saldoLiq = 0; // Trava em 0 apenas na aposentadoria para não distorcer gráfico visualmente
+                            }
+                            // Se estiver acumulando (isAcc), deixa negativo para penalizar o patrimônio final com juros compostos negativos
                         }
 
                         if (m === totalMeses) saldoFinal = saldoLiq;
@@ -261,8 +267,11 @@
                     }
 
                     if (saldoLiq < 0) {
-                        if (mesFimBase === null) mesFimBase = m;
-                        saldoLiq = 0;
+                        if (!isAcc) {
+                            if (mesFimBase === null) mesFimBase = m;
+                            saldoLiq = 0;
+                        }
+                        // Na base, se ficar negativo na acumulação (improvável sem saques extras), mantemos lógica de dívida
                     }
 
                     if (m % 12 === 0 || m === totalMeses) {
@@ -290,10 +299,6 @@
                 const projMes = inputs.projetoAno * 12;
                 
                 // Financiamento: Taxa
-                // Se o usuário usou inflação no geral, a taxa do financiamento (geralmente nominal) deve ser ajustada?
-                // Normalmente financiamento é taxa fixa nominal + TR ou IPCA.
-                // Para simplificar e ser comparável, vamos assumir que a taxa inserida aqui segue a mesma lógica da taxa de retorno (se uma é real, a outra é real).
-                // Mas geralmente financiamento é NOMINAL. Vamos converter para mensal simples por enquanto.
                 const taxaFinAnual = parseFloat(inputs.projetoTaxaFin) / 100;
                 const taxaFinMensal = Math.pow(1 + taxaFinAnual, 1/12) - 1;
                 const projPrazoMeses = inputs.projetoPrazo * 12;
@@ -325,12 +330,15 @@
                 
                 // Melhor estratégia
                 let melhorEstrat = "Manter Atual";
-                if (comparativoProj[1].patrimonioFinal > comparativoProj[2].patrimonioFinal) melhorEstrat = "À Vista";
-                else melhorEstrat = "Financiar";
+                // Lógica de decisão melhorada para considerar falência
+                const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal; // Penaliza falência
+                const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
+                
+                if (finalAvista > finalFinanc && finalAvista > 0) melhorEstrat = "À Vista";
+                else if (finalFinanc > finalAvista && finalFinanc > 0) melhorEstrat = "Financiar";
+                else if (finalAvista < 0 && finalFinanc < 0) melhorEstrat = "Inviável (Ambos quebram)";
 
                 // --- MONTE CARLO (Recalculado apenas para base para não travar) ---
-                // (Omitido lógica complexa de MC aqui para brevidade, mantendo o valor estático ou simples se necessário, mas o código original já tinha)
-                // Mantendo lógica simples de Risco apenas para o plano BASE para não pesar.
                 const simulacoes = 200; // Reduzido levemente para performance
                 let falhas = 0;
                 for (let s = 0; s < simulacoes; s++) {
@@ -687,7 +695,7 @@
                                                 
                                                 <h4 className="font-bold text-gray-700 text-lg mb-2">{cenario.nome}</h4>
                                                 
-                                                <div className="text-sm text-gray-500">Patrimônio Final</div>
+                                                <div className="text-sm text-gray-500">Patrimônio Final (Herança)</div>
                                                 <div className={`text-xl font-bold ${cenario.patrimonioFinal > 0 ? 'text-gray-800' : 'text-red-600'}`}>
                                                     {formatMoney(cenario.patrimonioFinal)}
                                                 </div>
@@ -712,7 +720,7 @@
 
                                     {/* CHART COMPARISON */}
                                     <Card className="h-80">
-                                        <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Saldo Líquido</h3>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Saldo Final (Legado)</h3>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={results.comparativoProj} layout="vertical" margin={{ left: 20, right: 30 }}>
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -726,13 +734,12 @@
                                     </Card>
 
                                     <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2">
-                                        <AlertTriangle size={20} className="shrink-0"/>
+                                        <Info size={20} className="shrink-0"/>
                                         <p>
-                                            <strong>Análise:</strong> A estratégia <strong>{results.melhorEstrat}</strong> preserva mais patrimônio no longo prazo.
-                                            {results.melhorEstrat === "À Vista" 
-                                                ? " Isso ocorre porque o rendimento dos seus investimentos é menor que os juros do financiamento." 
-                                                : " Isso ocorre porque você consegue investir a diferença com uma taxa maior que o custo da dívida (alavancagem)."}
-                                            <br/>Lembre-se: Financiamento traz risco de fluxo de caixa, enquanto pagamento à vista reduz liquidez imediata.
+                                            <strong>Por que o saldo cresceu tanto?</strong><br/>
+                                            O "Patrimônio Final" é o valor estimado <strong>após {inputs.anosUsufruto} anos de aposentadoria</strong> (Legado/Herança). 
+                                            Se o rendimento dos investimentos supera seus saques mensais, a diferença (sobra) continua rendendo juros compostos por décadas, transformando o valor inicial (ex: R$ 1,7 mi) em uma grande fortuna final (ex: R$ 16 mi).
+                                            Isso indica que sua taxa de saque é muito segura!
                                         </p>
                                     </div>
                                 </div>
