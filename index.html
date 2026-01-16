@@ -112,7 +112,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
+        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell, LabelList } from 'recharts';
         import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store } from 'lucide-react';
 
         // --- COMPONENTES UI ---
@@ -435,22 +435,12 @@
             const handlePrint = (mode) => {
                 setShowPrintModal(false);
                 let sectionsToPrint = [];
-                if (mode === 'current') {
-                    sectionsToPrint = [activeTab];
-                } else if (mode === 'all') {
-                    sectionsToPrint = sectionsConfig.map(s => s.id);
-                } else if (mode === 'custom') {
-                    sectionsToPrint = selectedForPrint;
-                }
-
+                if (mode === 'current') sectionsToPrint = [activeTab];
+                else if (mode === 'all') sectionsToPrint = sectionsConfig.map(s => s.id);
+                else if (mode === 'custom') sectionsToPrint = selectedForPrint;
                 setPrintSections(sectionsToPrint);
                 setIsPrinting(true);
-
-                // Wait for render update then print
-                setTimeout(() => {
-                    window.print();
-                    setIsPrinting(false);
-                }, 100);
+                setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
             };
 
             const togglePrintSelection = (id) => {
@@ -1217,15 +1207,20 @@
                     <Card className="h-80">
                         <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Patrimônio Líquido Final</h3>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={results.comparativoHibrido.filter(c => c.type === 'compra')} layout="vertical" margin={{ left: 20, right: 30 }}>
+                            <BarChart data={results.comparativoHibrido.filter(c => c.type === 'compra')} layout="vertical" margin={{ top: 5, right: 110, left: 10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} />
-                                <YAxis dataKey="nome" type="category" width={140} tick={{fontSize: 11}} />
-                                <Tooltip formatter={(value) => formatMoney(value)} />
-                                <Bar dataKey="valor" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} hide />
+                                <YAxis dataKey="nome" type="category" width={150} tick={{fontSize: 11, width: 140}} />
+                                <Tooltip 
+                                    cursor={{fill: 'transparent'}}
+                                    formatter={(value) => formatMoney(value)} 
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={40}>
                                     {results.comparativoHibrido.filter(c => c.type === 'compra').map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.active ? '#fbbf24' : '#3b82f6'} />
                                     ))}
+                                    <LabelList dataKey="valor" position="right" formatter={(val) => formatMoney(val)} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
