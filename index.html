@@ -70,12 +70,37 @@
 
         /* Estilos de Impressão */
         @media print {
-            @page { size: A4; margin: 15mm; }
-            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            /* Configuração da Página: Margens e Tamanho */
+            @page {
+                size: A4;
+                margin: 15mm; /* Margem definida via código */
+            }
+
+            body { 
+                background: white; 
+                margin: 0;
+                padding: 0;
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important;
+            }
+
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            .card-print { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; margin-bottom: 20px; page-break-inside: avoid; }
-            .section-break { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; break-before: auto; }
+            
+            .card-print { 
+                box-shadow: none !important; 
+                border: 1px solid #ddd !important;
+                break-inside: avoid; /* Evita quebrar gráficos no meio da página */
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+            
+            .section-break { 
+                margin-top: 20px; 
+                border-top: 2px solid #eee; 
+                padding-top: 20px; 
+                break-before: auto;
+            }
         }
         .print-only { display: none; }
     </style>
@@ -1078,6 +1103,31 @@
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
+                    </Card>
+
+                    {/* NEW EXPLANATION CARD */}
+                    <Card className="bg-slate-100 border border-slate-200 mt-6 no-print">
+                         <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                            <Info size={16}/> Metodologia do Cálculo
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                            <div>
+                                <strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong>
+                                <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>Aluguel Atual</strong>. Esse é o montante disponível para "Moradia + Investimento".</p>
+                            </div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">2. Cenário de Aluguel</strong>
+                                <p>Considera-se que o valor do aluguel é uma despesa a fundo perdido. Apenas o valor do <strong>Aporte</strong> é investido mensalmente a juros compostos.</p>
+                            </div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">3. Cenário de Financiamento</strong>
+                                <p>Você deixa de pagar aluguel. A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
+                            </div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">4. Amortização vs. Investimento</strong>
+                                <p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p>
+                            </div>
+                        </div>
                     </Card>
                 </div>
             );
