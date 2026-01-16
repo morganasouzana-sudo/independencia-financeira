@@ -468,6 +468,7 @@
                     taxaMensalInv = Math.pow(1 + taxaRetorno, 1/12) - 1;
                 }
                 
+                // Taxa Mensal da Inflação (para deflacionar parcelas nominais)
                 const taxaInflacaoMensal = Math.pow(1 + taxaInflacao, 1/12) - 1;
 
                 const mesesAcumulacao = inputs.anosAcumulacao * 12;
@@ -1034,6 +1035,10 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <InputGroup label={`Valor do ${config.label}`} icon={config.icon} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
+                            
+                            {/* MOVIDO PARA CÁ: Aluguel Atual */}
+                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
+
                             <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
                             
                             {/* Novo Selector de Tipo de Taxa */}
@@ -1055,7 +1060,6 @@
                             <InputGroup label={config.rateLabel} icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} hidden={!config.showFinancing} />
                             
                             <InputGroup label={config.termLabel} icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} hidden={!config.showFinancing} />
-                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
                         </div>
                         
                          {/* NEW: Installment Display */}
