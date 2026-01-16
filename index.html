@@ -686,7 +686,7 @@
                 const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
                 
-                const simAluguel = runHybridSimulation(0, 'aluguel');
+                // const simAluguel = runHybridSimulation(0, 'aluguel'); // Removed from comparison
                 const simHibrida = runHybridSimulation(inputs.estrategiaAmortizacao, 'financiamento');
                 const simInvestirTudo = runHybridSimulation(0, 'financiamento');
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
@@ -696,21 +696,20 @@
                    let low = 0; 
                    let high = 50000; 
                    let found = 0;
-                   const baseRun = (scenarioType === 'aluguel') ? simAluguel : simHibrida;
+                   const baseRun = runHybridSimulation(targetAmort, 'financiamento');
                    if (!baseRun.mesFim) return 0;
                    return Math.round(saqueMensal * 0.2); 
                 };
                 
                 // Helper melhorado
                 const solveRequiredExtra = (scenarioType, targetAmort) => {
-                     const res = (scenarioType === 'aluguel') ? simAluguel : (targetAmort === 100 ? simAmortizarTudo : (targetAmort === 0 ? simInvestirTudo : simHibrida));
+                     const res = (targetAmort === 100 ? simAmortizarTudo : (targetAmort === 0 ? simInvestirTudo : simHibrida));
                      if (!res.mesFim) return 0;
                      const mesesFaltantes = totalMeses - res.mesFim;
                      const ratioFalta = mesesFaltantes / (inputs.anosAcumulacao * 12);
                      return Math.round(aporteMensal * ratioFalta);
                 };
 
-                const reqAluguel = solveRequiredExtra('aluguel', 0);
                 const reqHibrido = solveRequiredExtra('financiamento', inputs.estrategiaAmortizacao);
                 const reqInvestir = solveRequiredExtra('financiamento', 0);
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
@@ -719,7 +718,6 @@
                 let melhorEstrat = "Manter Atual";
                 
                 const scores = [
-                    { name: 'aluguel', val: simAluguel.mesFim ? -1 : simAluguel.saldoFinal },
                     { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal },
                     { name: 'investir', val: simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal },
                     { name: 'amortizar', val: simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal }
@@ -730,16 +728,15 @@
                 
                 const winner = scores[0];
                 if (winner.val < 0) melhorEstrat = "Inviável (Todos quebram)";
-                else if (winner.name === 'aluguel') melhorEstrat = "Aluguel (Cenário Atual)";
                 else if (winner.name === 'hibrido') melhorEstrat = `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`;
                 else if (winner.name === 'investir') melhorEstrat = "Financiar e Investir 100% da Sobra";
                 else if (winner.name === 'amortizar') melhorEstrat = "Financiar e Amortizar 100% da Sobra";
 
                 const comparativoHibrido = [
-                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0, active: winner.name === 'aluguel' },
-                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' },
-                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' },
-                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' }
+                    // { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0, active: winner.name === 'aluguel' },
+                    { nome: "Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' },
+                    { nome: `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' },
+                    { nome: "Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' }
                 ];
                 
                 const simAvista = runSimulation({
@@ -754,36 +751,29 @@
 
                 let explicacaoProj = "";
                 
-                const finalBase = simBase.mesFim ? -1 : simBase.saldoFinal;
-                const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
-                const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
+                // Comparação focada em estratégias de compra
+                const finalHibrido = simHibrida.mesFim ? -1 : simHibrida.saldoFinal;
+                const finalInvestir = simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal;
+                const finalAmortizar = simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal;
 
-                if (finalAvista > finalFinanc && finalAvista > finalBase) {
-                    explicacaoProj = "A economia do aluguel investida superou a perda de rendimento do capital gasto.";
-                } else if (finalFinanc > finalAvista && finalFinanc > finalBase) {
-                    explicacaoProj = "Apesar dos juros da dívida, manter seu capital investido rendeu mais do que descapitalizar.";
-                } else if (finalBase > finalAvista && finalBase > finalFinanc) {
-                    explicacaoProj = "O custo do imóvel (perda de juros ou dívida) é maior que a economia de aluguel. Financeiramente, alugar compensa mais.";
+                if (finalInvestir > finalAmortizar && finalInvestir > 0) {
+                    explicacaoProj = "Investir a sobra rende mais do que o custo efetivo da dívida.";
+                } else if (finalAmortizar > finalInvestir && finalAmortizar > 0) {
+                    explicacaoProj = "O custo da dívida é alto. Amortizar para reduzir juros é a melhor opção.";
+                } else if (finalHibrido > 0) {
+                    explicacaoProj = "A estratégia híbrida equilibra liquidez e redução de dívida.";
                 } else {
-                    explicacaoProj = "A compra do imóvel compromete a sustentabilidade do plano no longo prazo.";
+                    explicacaoProj = "O financiamento compromete a sustentabilidade do plano. Avalie um imóvel menor.";
                 }
 
                 const insights = [];
                 if (simHibrida.mesFim) {
                     insights.push({ type: 'wait', text: "Comprar hoje apresenta risco. Considere aguardar 2-3 anos acumulando capital para dar uma entrada maior e reduzir a parcela." });
                 }
-                if (simAluguel.saldoFinal > simHibrida.saldoFinal) {
-                     const diff = simAluguel.saldoFinal - simHibrida.saldoFinal;
-                     if (diff > 10000000) { 
-                         insights.push({ type: 'rent', text: `O cenário de Aluguel está gerando ${formatMoney(diff)} a mais de patrimônio. O financiamento só valeria a pena se o aluguel subisse drasticamente.` });
-                     }
-                }
-
-                const comparativoProj = [
-                    { nome: "Aluguel (Atual)", patrimonioFinal: simBase.saldoFinal, duracao: simBase.mesFim ? simBase.mesFim/12 : (totalMeses/12), impacto: 0, mesFim: simBase.mesFim },
-                    { nome: "Compra à Vista", patrimonioFinal: simAvista.saldoFinal, duracao: simAvista.mesFim ? simAvista.mesFim/12 : (totalMeses/12), impacto: impactoAvista, mesFim: simAvista.mesFim },
-                    { nome: "Financiado", patrimonioFinal: simFinanc.saldoFinal, duracao: simFinanc.mesFim ? simFinanc.mesFim/12 : (totalMeses/12), impacto: impactoFinanc, mesFim: simFinanc.mesFim }
-                ];
+                // Removed rental insight since we focus on buying
+                
+                // Only for chart comparison, we can keep simple view
+                const comparativoProj = comparativoHibrido; // Use hybrid comparison for charts
 
                 let saldoCrise = saldoFinalAcumulacao * 0.7; 
                 let sobreviveuCrise = true;
@@ -971,7 +961,7 @@
 
             const renderProjetos = () => (
                 <div className="section-break">
-                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Projetos de Vida (Comparador Aluguel vs Compra)</h2>}
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Projetos de Vida (Estratégia de Compra)</h2>}
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 no-print">
                         <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Financiamento Imobiliário</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1005,7 +995,7 @@
                     {/* NOVO: OTIMIZADOR DE ESTRATÉGIA E COMPARATIVO GLOBAL */}
                     <Card className="border-t-4 border-indigo-500 mb-6">
                         <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                            <Sliders className="w-5 h-5"/> Comparador de Estratégias: Aluguel vs. Financiamento
+                            <Sliders className="w-5 h-5"/> Comparador de Estratégias: Como lidar com o financiamento?
                         </h3>
                         
                         <div className="mb-4 bg-slate-50 p-4 rounded-lg">
@@ -1014,16 +1004,14 @@
                                 <span className="text-lg font-bold text-emerald-700">{formatMoney(results.capacidadeBase)}</span>
                             </div>
                             <p className="text-xs text-gray-500 mb-2">
-                                *O simulador assume que você tem esse valor disponível todo mês. 
-                                Se Alugar, paga aluguel e investe o resto. 
-                                Se Financiar, paga parcela e investe/amortiza o resto.
+                                *O simulador assume que você usará essa capacidade para pagar a parcela. O que sobrar (Excedente) será alocado conforme sua escolha.
                             </p>
                         </div>
 
                         {results.temExcedente ? (
                             <div className="mb-6">
                                 <p className="text-sm text-gray-600 mb-3">
-                                    No cenário de financiamento, sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?
+                                    Sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?
                                 </p>
                                 <div className="bg-slate-50 p-4 rounded-lg">
                                     <div className="flex justify-between text-sm font-semibold mb-2">
@@ -1048,12 +1036,12 @@
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            {results.comparativoHibrido.map((cenario, idx) => (
-                                <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'} ${cenario.type === 'aluguel' ? 'border-l-4 border-l-blue-400' : ''}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
+                                <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200 relative' : 'bg-white border-gray-200'}`}>
+                                    {cenario.active && <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shadow-sm">Melhor Estratégia</div>}
                                     <div>
-                                        <div className="text-xs font-bold uppercase text-gray-400 mb-1">{cenario.type === 'aluguel' ? 'Cenário Base' : 'Cenário Compra'}</div>
-                                        <div className="text-sm font-bold text-gray-700 mb-2 leading-tight">{cenario.nome}</div>
+                                        <div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div>
                                     </div>
                                     <div>
                                         <div className="text-xs text-gray-500 mt-2">Patrimônio Final (Legado)</div>
@@ -1063,8 +1051,7 @@
                                             <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
                                         )}
                                         <div className="mt-2 text-xs">
-                                            {cenario.type === 'aluguel' ? <span className="text-gray-400">-</span> : 
-                                                cenario.quitacao 
+                                            {cenario.quitacao 
                                                 ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
                                                 : <span className="text-orange-500">Não quita antecip.</span>
                                             }
@@ -1072,10 +1059,9 @@
                                         <div className="mt-2 text-xs pt-2 border-t border-gray-100">
                                             <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/>
                                             <span className="font-semibold text-gray-700">
-                                                {cenario.type === 'aluguel' ? '-' : formatMoney(cenario.totalPago)}
+                                                {formatMoney(cenario.totalPago)}
                                             </span>
                                         </div>
-                                        {cenario.active && <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR OPÇÃO</div>}
                                         {cenario.mesFim && (
                                             <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600">
                                                 <strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.
@@ -1103,6 +1089,13 @@
                              </div>
                         )}
                     </Card>
+                    
+                    <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2 border border-yellow-200 mb-6">
+                        <Info size={20} className="shrink-0"/>
+                        <p>
+                            <strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/>
+                        </p>
+                    </div>
 
                     <Card className="h-80">
                         <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Patrimônio Líquido Final</h3>
@@ -1114,7 +1107,7 @@
                                 <Tooltip formatter={(value) => formatMoney(value)} />
                                 <Bar dataKey="valor" fill="#3b82f6" radius={[0, 4, 4, 0]}>
                                     {results.comparativoHibrido.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.type === 'aluguel' ? '#94a3b8' : entry.active ? '#4f46e5' : '#3b82f6'} />
+                                        <Cell key={`cell-${index}`} fill={entry.type === 'aluguel' ? '#94a3b8' : entry.active ? '#fbbf24' : '#3b82f6'} />
                                     ))}
                                 </Bar>
                             </BarChart>
@@ -1132,15 +1125,11 @@
                                 <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>Aluguel Atual</strong>. Esse é o montante disponível para "Moradia + Investimento".</p>
                             </div>
                             <div>
-                                <strong className="block text-slate-800 mb-1">2. Cenário de Aluguel</strong>
-                                <p>Considera-se que o valor do aluguel é uma despesa a fundo perdido. Apenas o valor do <strong>Aporte</strong> é investido mensalmente a juros compostos.</p>
-                            </div>
-                            <div>
-                                <strong className="block text-slate-800 mb-1">3. Cenário de Financiamento</strong>
+                                <strong className="block text-slate-800 mb-1">2. Cenário de Compra</strong>
                                 <p>Você deixa de pagar aluguel. A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
                             </div>
                             <div>
-                                <strong className="block text-slate-800 mb-1">4. Amortização vs. Investimento</strong>
+                                <strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong>
                                 <p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p>
                             </div>
                         </div>
