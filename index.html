@@ -279,7 +279,7 @@
                 // Projetos
                 projetoTipo: "imovel", 
                 projetoValor: "50000000",
-                projetoAno: 0, 
+                projetoAno: 0, // Default 0 = Agora
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
                 projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
@@ -301,7 +301,7 @@
             // Print States
             const [showPrintModal, setShowPrintModal] = useState(false);
             const [isPrinting, setIsPrinting] = useState(false);
-            const [printSections, setPrintSections] = useState([]); 
+            const [printSections, setPrintSections] = useState([]); // Lista de abas a imprimir
 
             const sectionsConfig = [
                 { id: 'simulacao', label: 'Simulação Padrão' },
@@ -312,7 +312,7 @@
                 { id: 'risco', label: 'Análise de Risco' }
             ];
 
-            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); 
+            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); // Default all
 
             // Project Type Configs - Expanded
             const projectTypes = {
@@ -392,7 +392,7 @@
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v11'); 
+                let saved = localStorage.getItem('financial_plan_v11'); // Bump version
                 
                 if (!saved) {
                     saved = localStorage.getItem('financial_plan_v10') || localStorage.getItem('financial_plan_v9');
@@ -548,23 +548,55 @@
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
                 const pieData = [{ name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' }, { name: 'Juros', value: totalJuros, color: '#10b981' }];
 
-                // --- MARCOS ---
+                // --- MARCOS DINÂMICOS (ATUALIZADO) ---
                 const formatLabel = (v) => {
-                    if (v >= 1000000) { const m = v / 1000000; return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões"); }
+                    if (v >= 1000000) {
+                        const m = v / 1000000;
+                        return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões");
+                    }
                     return (v / 1000) + "k";
                 };
+
                 let marcosList = [];
                 const tetoMarcos = Math.max(montanteNecessario * 1.2, saldoFinalAcumulacao, 1000000);
-                if (milestoneMode === '100k') { for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
-                else if (milestoneMode === '500k') { for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
-                else if (milestoneMode === '1m') { for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
-                else { marcosList = [{ valor: 100000, nome: "100 Mil" }, { valor: 500000, nome: "Meio Milhão" }, { valor: 1000000, nome: "1º Milhão", especial: true }, { valor: 2000000, nome: "2 Milhões" }, { valor: 5000000, nome: "5 Milhões" }, { valor: 10000000, nome: "10 Milhões" }]; }
-                const addIfMissing = (val, name, props={}) => { if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) marcosList.push({ valor: val, nome: name, ...props }); else { const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000); if (props.alvo) { existing.nome = name; existing.alvo = true; } if (props.especial) existing.especial = true; } };
+                
+                if (milestoneMode === '100k') { 
+                    for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else if (milestoneMode === '500k') { 
+                    for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else if (milestoneMode === '1m') { 
+                    for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
+                } else {
+                    marcosList = [
+                        { valor: 100000, nome: "100 Mil" },
+                        { valor: 500000, nome: "Meio Milhão" },
+                        { valor: 1000000, nome: "1º Milhão", especial: true },
+                        { valor: 2000000, nome: "2 Milhões" },
+                        { valor: 5000000, nome: "5 Milhões" },
+                        { valor: 10000000, nome: "10 Milhões" }
+                    ];
+                }
+
+                const addIfMissing = (val, name, props={}) => {
+                    if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) {
+                        marcosList.push({ valor: val, nome: name, ...props });
+                    } else {
+                        const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000);
+                        if (props.alvo) { existing.nome = name; existing.alvo = true; }
+                        if (props.especial) { existing.especial = true; }
+                    }
+                };
+                
                 addIfMissing(montanteNecessario, "Liberdade Financeira", { alvo: true });
-                const umMilhao = marcosList.find(m => Math.abs(m.valor - 1000000) < 1000); if(umMilhao) umMilhao.especial = true;
+                const umMilhao = marcosList.find(m => Math.abs(m.valor - 1000000) < 1000);
+                if(umMilhao) umMilhao.especial = true;
+
                 marcosList.sort((a,b) => a.valor - b.valor);
                 marcosList = marcosList.map(m => ({ ...m, atingidoEm: null }));
-                simBase.data.forEach(ponto => { const total = ponto.saldoLiquido + ponto.saldoRestrito; marcosList.forEach(marco => { if (!marco.atingidoEm && total >= marco.valor) marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes }; }); });
+                simBase.data.forEach(ponto => {
+                    const total = ponto.saldoLiquido + ponto.saldoRestrito;
+                    marcosList.forEach(marco => { if (!marco.atingidoEm && total >= marco.valor) marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes }; });
+                });
 
                 const sensAporteVal = parseInt(inputs.sensAporteExtra || "0") / 100;
                 const simSensAporte = runSimulation({ apMensal: aporteMensal + sensAporteVal });
@@ -574,36 +606,48 @@
                 const simSensTaxa = runSimulation({ txMensal: novaTaxaMensal });
 
                 const inflacaoData = [];
-                for(let y=0; y<=30; y+=5) { const fator = Math.pow(1 + taxaInflacao, y); inflacaoData.push({ ano: y, custo: Math.round(saqueMensal * fator), perdaPoder: Math.round(100 - (100/fator)) }); }
+                for(let y=0; y<=30; y+=5) {
+                    const fator = Math.pow(1 + taxaInflacao, y);
+                    inflacaoData.push({ ano: y, custo: Math.round(saqueMensal * fator), perdaPoder: Math.round(100 - (100/fator)) });
+                }
 
-                // --- PROJETOS & OTIMIZADOR ---
+                // Projetos
                 const config = projectTypes[inputs.projetoTipo] || projectTypes.imovel; // Fallback
                 
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
-                // Importante: Se o projeto não tem savings (ex: viagem), o valor é 0.
                 const projEconomia = config.hasSavings ? parseInt(inputs.projetoAluguelAtual || "0") / 100 : 0; 
                 const projMes = inputs.projetoAno * 12;
+                
+                // Taxa Financiamento: Conversão Nominal -> Real para comparação justa
                 const taxaFinAnualInput = parseFloat(inputs.projetoTaxaFin) / 100;
                 
                 let taxaFinAnualReal, taxaFinMensalReal, taxaFinMensalNominal;
+                
                 if (inputs.projetoTipoTaxa === 'ipca') {
+                    // IPCA+: A taxa inserida já é a taxa real (spread). 
+                    // A correção monetária (inflação) apenas mantém o valor da dívida constante em termos reais.
                     taxaFinAnualReal = taxaFinAnualInput;
+                    // A taxa nominal para cálculo de parcela inicial seria (1+real)*(1+inf) - 1
                     const taxaNominalEquiv = ((1 + taxaFinAnualInput) * (1 + taxaInflacao)) - 1;
                     taxaFinMensalNominal = Math.pow(1 + taxaNominalEquiv, 1/12) - 1;
                 } else {
+                    // Nominal (Pré/TR): A taxa inserida é a nominal total.
+                    // Custo Efetivo Real = ((1 + nominal) / (1 + inflacao)) - 1
                     taxaFinAnualReal = ((1 + taxaFinAnualInput) / (1 + taxaInflacao)) - 1;
                     taxaFinMensalNominal = Math.pow(1 + taxaFinAnualInput, 1/12) - 1;
                 }
-                const taxaFinMensalReal_Calc = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
-
+                
+                taxaFinMensalReal = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
+                
                 const projPrazoMeses = inputs.projetoPrazo * 12;
                 const valorFinanciado = Math.max(0, projValor - projEntrada);
+                
                 const parcelaNominal = valorFinanciado > 0 && taxaFinMensalNominal > 0 ? 
                     valorFinanciado * (taxaFinMensalNominal * Math.pow(1 + taxaFinMensalNominal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensalNominal, projPrazoMeses) - 1) : 
                     valorFinanciado / projPrazoMeses;
 
-                // Capacidade considera aporte + economia gerada pelo projeto
+                // --- ESTRATÉGIA HÍBRIDA GLOBAL (CORRIGIDO) ---
                 const capacidadeBase = aporteMensal + projEconomia;
                 
                 const runHybridSimulation = (amortPercentage, scenarioType) => {
@@ -613,7 +657,7 @@
                     let mesFim = null;
                     let saldoFinal = 0;
                     let dividaQuitadaEm = null;
-                    let totalPagoDívida = 0;
+                    let totalPagoDívida = 0; // Acumula pagamentos reais
 
                     if (scenarioType === 'financiamento') {
                         saldoLiq -= projEntrada;
@@ -622,9 +666,11 @@
 
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
+                        
                         saldoLiq *= (1 + taxaMensalInv);
                         if (isAcc) saldoRest *= (1 + taxaMensalInv);
-                        if (divida > 0) divida *= (1 + taxaFinMensalReal_Calc);
+                        // A dívida cresce à taxa real (pois estamos descontando inflação da nominal)
+                        if (divida > 0) divida *= (1 + taxaFinMensalReal);
 
                         let disponivelParaAlocacao = 0;
 
@@ -1056,7 +1102,7 @@
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
                                 <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between relative pt-6 ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'}`}>
                                     {cenario.active && (
@@ -1362,8 +1408,8 @@
                                     <Home className="h-5 w-5" />
                                     Outros Ativos
                                 </h2>
-                                <InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} />
-                                <InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} />
+                                <InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} helpText="Rende separado e só soma ao saldo na aposentadoria." />
+                                <InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} helpText="Compõe patrimônio, mas não gera renda nem paga contas." />
                             </Card>
 
                             <Card>
