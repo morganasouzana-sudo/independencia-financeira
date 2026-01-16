@@ -714,12 +714,32 @@
                 const reqHibrido = solveRequiredExtra('financiamento', inputs.estrategiaAmortizacao);
                 const reqInvestir = solveRequiredExtra('financiamento', 0);
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
+                
+                // Critério de melhor cenário
+                let melhorEstrat = "Manter Atual";
+                
+                const scores = [
+                    { name: 'aluguel', val: simAluguel.mesFim ? -1 : simAluguel.saldoFinal },
+                    { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal },
+                    { name: 'investir', val: simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal },
+                    { name: 'amortizar', val: simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal }
+                ];
+                
+                // Ordena por maior patrimônio (se não falir)
+                scores.sort((a,b) => b.val - a.val);
+                
+                const winner = scores[0];
+                if (winner.val < 0) melhorEstrat = "Inviável (Todos quebram)";
+                else if (winner.name === 'aluguel') melhorEstrat = "Aluguel (Cenário Atual)";
+                else if (winner.name === 'hibrido') melhorEstrat = `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`;
+                else if (winner.name === 'investir') melhorEstrat = "Financiar e Investir 100% da Sobra";
+                else if (winner.name === 'amortizar') melhorEstrat = "Financiar e Amortizar 100% da Sobra";
 
                 const comparativoHibrido = [
-                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0 },
-                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida },
-                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida },
-                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida }
+                    { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0, active: winner.name === 'aluguel' },
+                    { nome: "Financiar e Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' },
+                    { nome: `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' },
+                    { nome: "Financiar e Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' }
                 ];
                 
                 const simAvista = runSimulation({
@@ -733,23 +753,18 @@
                 const impactoFinanc = projAluguel - parcelaNominal;
 
                 let explicacaoProj = "";
-                let melhorEstrat = "Manter Atual";
                 
                 const finalBase = simBase.mesFim ? -1 : simBase.saldoFinal;
                 const finalAvista = simAvista.mesFim ? -1 : simAvista.saldoFinal;
                 const finalFinanc = simFinanc.mesFim ? -1 : simFinanc.saldoFinal;
 
                 if (finalAvista > finalFinanc && finalAvista > finalBase) {
-                    melhorEstrat = "Compra à Vista";
                     explicacaoProj = "A economia do aluguel investida superou a perda de rendimento do capital gasto.";
                 } else if (finalFinanc > finalAvista && finalFinanc > finalBase) {
-                    melhorEstrat = "Financiar";
                     explicacaoProj = "Apesar dos juros da dívida, manter seu capital investido rendeu mais do que descapitalizar.";
                 } else if (finalBase > finalAvista && finalBase > finalFinanc) {
-                    melhorEstrat = "Aluguel (Cenário Atual)";
                     explicacaoProj = "O custo do imóvel (perda de juros ou dívida) é maior que a economia de aluguel. Financeiramente, alugar compensa mais.";
                 } else {
-                    melhorEstrat = "Inviável (Risco de Quebra)";
                     explicacaoProj = "A compra do imóvel compromete a sustentabilidade do plano no longo prazo.";
                 }
 
@@ -1060,6 +1075,7 @@
                                                 {cenario.type === 'aluguel' ? '-' : formatMoney(cenario.totalPago)}
                                             </span>
                                         </div>
+                                        {cenario.active && <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-bl-lg">MELHOR OPÇÃO</div>}
                                         {cenario.mesFim && (
                                             <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600">
                                                 <strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.
