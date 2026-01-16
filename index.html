@@ -70,37 +70,12 @@
 
         /* Estilos de Impressão */
         @media print {
-            /* Configuração da Página: Margens e Tamanho */
-            @page {
-                size: A4;
-                margin: 15mm; /* Margem definida via código */
-            }
-
-            body { 
-                background: white; 
-                margin: 0;
-                padding: 0;
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important;
-            }
-
+            @page { size: A4; margin: 15mm; }
+            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            
-            .card-print { 
-                box-shadow: none !important; 
-                border: 1px solid #ddd !important;
-                break-inside: avoid; /* Evita quebrar gráficos no meio da página */
-                margin-bottom: 20px;
-                page-break-inside: avoid;
-            }
-            
-            .section-break { 
-                margin-top: 20px; 
-                border-top: 2px solid #eee; 
-                padding-top: 20px; 
-                break-before: auto;
-            }
+            .card-print { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; margin-bottom: 20px; page-break-inside: avoid; }
+            .section-break { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; break-before: auto; }
         }
         .print-only { display: none; }
     </style>
@@ -113,7 +88,7 @@
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -123,7 +98,8 @@
             </div>
         );
 
-        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "", compact = false }) => {
+        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "", compact = false, hidden = false }) => {
+            if (hidden) return null;
             const handleChange = (e) => {
                 let val = e.target.value;
                 if (type === "currency") {
@@ -276,11 +252,12 @@
                 aportesExtras: [], 
 
                 // Projetos
+                projetoTipo: "imovel", // NOVO: imovel | carro | viagem | educacao | outro
                 projetoValor: "50000000",
-                projetoAno: 0, // Default 0 = Agora
+                projetoAno: 0, 
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
-                projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
+                projetoTipoTaxa: "nominal",
                 projetoPrazo: 30,
                 projetoAluguelAtual: "0", 
 
@@ -289,7 +266,7 @@
                 sensTaxaExtra: 1.0,
 
                 // Estrategia Amortizacao
-                estrategiaAmortizacao: 50 // 0 a 100%
+                estrategiaAmortizacao: 50
             });
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
@@ -299,7 +276,7 @@
             // Print States
             const [showPrintModal, setShowPrintModal] = useState(false);
             const [isPrinting, setIsPrinting] = useState(false);
-            const [printSections, setPrintSections] = useState([]); // Lista de abas a imprimir
+            const [printSections, setPrintSections] = useState([]); 
 
             const sectionsConfig = [
                 { id: 'simulacao', label: 'Simulação Padrão' },
@@ -310,14 +287,24 @@
                 { id: 'risco', label: 'Análise de Risco' }
             ];
 
-            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); // Default all
+            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); 
+
+            // Project Type Configs
+            const projectTypes = {
+                imovel: { label: "Imóvel", icon: Home, savingsLabel: "Aluguel Atual", savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", hasSavings: true },
+                carro: { label: "Veículo", icon: Car, savingsLabel: "Gasto Transporte Atual", savingsHelp: "Gasto com Uber/Taxi que será economizado.", hasSavings: true },
+                viagem: { label: "Viagem / Intercâmbio", icon: Plane, savingsLabel: "Custo Recorrente", savingsHelp: "Se a viagem substituir um custo mensal, informe aqui. Caso contrário, 0.", hasSavings: true },
+                educacao: { label: "Educação / Curso", icon: GraduationCap, savingsLabel: "Mensalidade Atual", savingsHelp: "Se for substituir uma escola atual.", hasSavings: true },
+                negocio: { label: "Empreender", icon: Store, savingsLabel: "Lucro Estimado/Mês", savingsHelp: "Retorno mensal esperado do negócio.", hasSavings: true },
+                outro: { label: "Outro Projeto", icon: Target, savingsLabel: "Economia Gerada", savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", hasSavings: true },
+            };
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v10'); // Bump version
+                let saved = localStorage.getItem('financial_plan_v11'); // Bump version
                 
                 if (!saved) {
-                    saved = localStorage.getItem('financial_plan_v9') || localStorage.getItem('financial_plan_v8') || localStorage.getItem('financial_plan_v7');
+                    saved = localStorage.getItem('financial_plan_v10') || localStorage.getItem('financial_plan_v9');
                 }
 
                 if (saved) {
@@ -326,14 +313,15 @@
                         if (!parsed.aportesExtras) parsed.aportesExtras = [];
                         if (parsed.estrategiaAmortizacao === undefined) parsed.estrategiaAmortizacao = 50; 
                         if (parsed.projetoAno === undefined) parsed.projetoAno = 0;
-                        if (parsed.projetoTipoTaxa === undefined) parsed.projetoTipoTaxa = "nominal"; // Default migration
+                        if (parsed.projetoTipoTaxa === undefined) parsed.projetoTipoTaxa = "nominal"; 
+                        if (parsed.projetoTipo === undefined) parsed.projetoTipo = "imovel"; // Default migration
                         setInputs(prev => ({ ...prev, ...parsed }));
                     } catch (e) { console.error("Erro ao carregar", e); }
                 }
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('financial_plan_v10', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v11', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
@@ -355,32 +343,18 @@
             
             const handlePrint = (mode) => {
                 setShowPrintModal(false);
-                
                 let sectionsToPrint = [];
-                if (mode === 'current') {
-                    sectionsToPrint = [activeTab];
-                } else if (mode === 'all') {
-                    sectionsToPrint = sectionsConfig.map(s => s.id);
-                } else if (mode === 'custom') {
-                    sectionsToPrint = selectedForPrint;
-                }
-
+                if (mode === 'current') sectionsToPrint = [activeTab];
+                else if (mode === 'all') sectionsToPrint = sectionsConfig.map(s => s.id);
+                else if (mode === 'custom') sectionsToPrint = selectedForPrint;
                 setPrintSections(sectionsToPrint);
                 setIsPrinting(true);
-
-                // Wait for render update then print
-                setTimeout(() => {
-                    window.print();
-                    setIsPrinting(false);
-                }, 100);
+                setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
             };
 
             const togglePrintSelection = (id) => {
-                if (selectedForPrint.includes(id)) {
-                    setSelectedForPrint(selectedForPrint.filter(s => s !== id));
-                } else {
-                    setSelectedForPrint([...selectedForPrint, id]);
-                }
+                if (selectedForPrint.includes(id)) setSelectedForPrint(selectedForPrint.filter(s => s !== id));
+                else setSelectedForPrint([...selectedForPrint, id]);
             };
 
             const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -403,7 +377,6 @@
                     taxaMensalInv = Math.pow(1 + taxaRetorno, 1/12) - 1;
                 }
                 
-                // Taxa Mensal da Inflação (para deflacionar parcelas nominais)
                 const taxaInflacaoMensal = Math.pow(1 + taxaInflacao, 1/12) - 1;
 
                 const mesesAcumulacao = inputs.anosAcumulacao * 12;
@@ -696,7 +669,7 @@
                    let low = 0; 
                    let high = 50000; 
                    let found = 0;
-                   const baseRun = runHybridSimulation(targetAmort, 'financiamento');
+                   const baseRun = (scenarioType === 'aluguel') ? simAluguel : simHibrida;
                    if (!baseRun.mesFim) return 0;
                    return Math.round(saqueMensal * 0.2); 
                 };
@@ -707,15 +680,15 @@
                      if (!res.mesFim) return 0;
                      const mesesFaltantes = totalMeses - res.mesFim;
                      const ratioFalta = mesesFaltantes / (inputs.anosAcumulacao * 12);
-                     return Math.round(aporteMensal * ratioFalta);
+                     return Math.round(aporteMensal * ratioFalta * 0.5); // Ajuste
                 };
 
+                const reqAluguel = solveRequiredExtra('aluguel', 0);
                 const reqHibrido = solveRequiredExtra('financiamento', inputs.estrategiaAmortizacao);
                 const reqInvestir = solveRequiredExtra('financiamento', 0);
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
                 
                 // Critério de melhor cenário
-                let melhorEstrat = "Manter Atual";
                 
                 const scores = [
                     { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal },
@@ -725,12 +698,13 @@
                 
                 // Ordena por maior patrimônio (se não falir)
                 scores.sort((a,b) => b.val - a.val);
-                
                 const winner = scores[0];
+                
+                let melhorEstrat = "";
                 if (winner.val < 0) melhorEstrat = "Inviável (Todos quebram)";
-                else if (winner.name === 'hibrido') melhorEstrat = `Financiar e Amortizar ${inputs.estrategiaAmortizacao}% da Sobra`;
-                else if (winner.name === 'investir') melhorEstrat = "Financiar e Investir 100% da Sobra";
-                else if (winner.name === 'amortizar') melhorEstrat = "Financiar e Amortizar 100% da Sobra";
+                else if (winner.name === 'hibrido') melhorEstrat = `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`;
+                else if (winner.name === 'investir') melhorEstrat = "Investir 100% da Sobra";
+                else if (winner.name === 'amortizar') melhorEstrat = "Amortizar 100% da Sobra";
 
                 const comparativoHibrido = [
                     // { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0, active: winner.name === 'aluguel' },
@@ -763,17 +737,15 @@
                 } else if (finalHibrido > 0) {
                     explicacaoProj = "A estratégia híbrida equilibra liquidez e redução de dívida.";
                 } else {
-                    explicacaoProj = "O financiamento compromete a sustentabilidade do plano. Avalie um imóvel menor.";
+                    explicacaoProj = "O financiamento compromete a sustentabilidade do plano. Avalie um projeto menor.";
                 }
 
                 const insights = [];
                 if (simHibrida.mesFim) {
-                    insights.push({ type: 'wait', text: "Comprar hoje apresenta risco. Considere aguardar 2-3 anos acumulando capital para dar uma entrada maior e reduzir a parcela." });
+                    insights.push({ type: 'wait', text: "Realizar este projeto hoje apresenta risco. Considere aguardar 2-3 anos acumulando capital." });
                 }
-                // Removed rental insight since we focus on buying
-                
-                // Only for chart comparison, we can keep simple view
-                const comparativoProj = comparativoHibrido; // Use hybrid comparison for charts
+
+                const comparativoProj = comparativoHibrido;
 
                 let saldoCrise = saldoFinalAcumulacao * 0.7; 
                 let sobreviveuCrise = true;
@@ -796,7 +768,7 @@
                     }
                 }
 
-                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights };
+                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: projectTypes[inputs.projetoTipo] };
             }, [inputs, milestoneMode]); 
 
             // Formatadores
@@ -959,15 +931,32 @@
                 </div>
             );
 
-            const renderProjetos = () => (
+            const renderProjetos = () => {
+                const config = results.projectConfigs;
+                return (
                 <div className="section-break">
                     {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Projetos de Vida (Estratégia de Compra)</h2>}
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 no-print">
-                        <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Financiamento Imobiliário</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Aquisição de Projeto</h3>
+                            <select 
+                                value={inputs.projetoTipo}
+                                onChange={(e) => updateInput("projetoTipo", e.target.value)}
+                                className="text-sm border-blue-200 bg-white text-blue-700 rounded-lg px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                            >
+                                <option value="imovel">Imóvel</option>
+                                <option value="carro">Veículo</option>
+                                <option value="viagem">Viagem</option>
+                                <option value="educacao">Educação</option>
+                                <option value="negocio">Empreender</option>
+                                <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <InputGroup label="Valor do Imóvel" icon={Landmark} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
+                            <InputGroup label={`Valor do ${config.label}`} icon={config.icon} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
-                            <InputGroup label="Quando Comprar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Compra Imediata" />
+                            <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
                             
                             {/* Novo Selector de Tipo de Taxa */}
                             <div className="mb-4">
@@ -988,23 +977,23 @@
                             <InputGroup label="Taxa do Contrato" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} />
                             
                             <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
-                            <InputGroup label="Aluguel Atual" icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText="Economizado se comprar" />
+                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
                         </div>
                     </div>
                     
                     {/* NOVO: OTIMIZADOR DE ESTRATÉGIA E COMPARATIVO GLOBAL */}
                     <Card className="border-t-4 border-indigo-500 mb-6">
                         <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                            <Sliders className="w-5 h-5"/> Comparador de Estratégias: Como lidar com o financiamento?
+                            <Sliders className="w-5 h-5"/> Estratégia de Pagamento: {config.label}
                         </h3>
                         
                         <div className="mb-4 bg-slate-50 p-4 rounded-lg">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal Total (Aporte + Aluguel Atual):</span>
+                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal (Aporte + {config.savingsLabel}):</span>
                                 <span className="text-lg font-bold text-emerald-700">{formatMoney(results.capacidadeBase)}</span>
                             </div>
                             <p className="text-xs text-gray-500 mb-2">
-                                *O simulador assume que você usará essa capacidade para pagar a parcela. O que sobrar (Excedente) será alocado conforme sua escolha.
+                                *O simulador usa essa capacidade para pagar a parcela. O excedente é alocado abaixo.
                             </p>
                         </div>
 
@@ -1032,16 +1021,16 @@
                         ) : (
                             <div className="p-4 bg-orange-50 text-orange-800 rounded-lg text-sm flex gap-2 mb-4">
                                 <AlertCircle size={20}/>
-                                <p>Nesta simulação, a parcela do financiamento ({formatMoney(results.parcela)}) é maior que sua capacidade total ({formatMoney(results.capacidadeBase)}). Você terá déficit mensal.</p>
+                                <p>A parcela ({formatMoney(results.parcela)}) excede sua capacidade ({formatMoney(results.capacidadeBase)}). Você terá déficit.</p>
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
                                 <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between relative pt-6 ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'}`}>
                                     {cenario.active && (
                                         <div className="absolute top-0 inset-x-0 flex justify-center -mt-3">
-                                            <div className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-yellow-500">
+                                            <div className="bg-amber-400 text-amber-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-amber-500">
                                                 <Star size={12} fill="currentColor" /> Melhor Opção
                                             </div>
                                         </div>
@@ -1057,8 +1046,7 @@
                                             <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
                                         )}
                                         <div className="mt-2 text-xs">
-                                            {cenario.type === 'aluguel' ? <span className="text-gray-400">-</span> : 
-                                                cenario.quitacao 
+                                            {cenario.quitacao 
                                                 ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
                                                 : <span className="text-orange-500">Não quita antecip.</span>
                                             }
@@ -1107,14 +1095,14 @@
                     <Card className="h-80">
                         <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Patrimônio Líquido Final</h3>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={results.comparativoHibrido} layout="vertical" margin={{ left: 20, right: 30 }}>
+                            <BarChart data={results.comparativoHibrido.filter(c => c.type === 'compra')} layout="vertical" margin={{ left: 20, right: 30 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                 <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} />
                                 <YAxis dataKey="nome" type="category" width={140} tick={{fontSize: 11}} />
                                 <Tooltip formatter={(value) => formatMoney(value)} />
                                 <Bar dataKey="valor" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                                    {results.comparativoHibrido.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.type === 'aluguel' ? '#94a3b8' : entry.active ? '#fbbf24' : '#3b82f6'} />
+                                    {results.comparativoHibrido.filter(c => c.type === 'compra').map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.active ? '#fbbf24' : '#3b82f6'} />
                                     ))}
                                 </Bar>
                             </BarChart>
@@ -1129,11 +1117,11 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
                             <div>
                                 <strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong>
-                                <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>Aluguel Atual</strong>. Esse é o montante disponível para "Moradia + Investimento".</p>
+                                <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>{config.savingsLabel}</strong>.</p>
                             </div>
                             <div>
-                                <strong className="block text-slate-800 mb-1">2. Cenário de Compra</strong>
-                                <p>Você deixa de pagar aluguel. A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
+                                <strong className="block text-slate-800 mb-1">2. Cenário de Aquisição</strong>
+                                <p>A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
                             </div>
                             <div>
                                 <strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong>
@@ -1142,7 +1130,7 @@
                         </div>
                     </Card>
                 </div>
-            );
+            )};
 
             const renderSensibilidade = () => (
                 <div className="section-break">
