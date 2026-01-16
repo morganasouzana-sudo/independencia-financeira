@@ -113,7 +113,7 @@
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -686,7 +686,7 @@
                 const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
                 
-                // const simAluguel = runHybridSimulation(0, 'aluguel'); // Removed from comparison
+                const simAluguel = runHybridSimulation(0, 'aluguel');
                 const simHibrida = runHybridSimulation(inputs.estrategiaAmortizacao, 'financiamento');
                 const simInvestirTudo = runHybridSimulation(0, 'financiamento');
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
@@ -1036,10 +1036,16 @@
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                             {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
-                                <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200 relative' : 'bg-white border-gray-200'}`}>
-                                    {cenario.active && <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shadow-sm">Melhor Estratégia</div>}
+                                <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between relative pt-6 ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'}`}>
+                                    {cenario.active && (
+                                        <div className="absolute top-0 inset-x-0 flex justify-center -mt-3">
+                                            <div className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-yellow-500">
+                                                <Star size={12} fill="currentColor" /> Melhor Opção
+                                            </div>
+                                        </div>
+                                    )}
                                     <div>
                                         <div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div>
                                     </div>
@@ -1051,7 +1057,8 @@
                                             <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
                                         )}
                                         <div className="mt-2 text-xs">
-                                            {cenario.quitacao 
+                                            {cenario.type === 'aluguel' ? <span className="text-gray-400">-</span> : 
+                                                cenario.quitacao 
                                                 ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
                                                 : <span className="text-orange-500">Não quita antecip.</span>
                                             }
