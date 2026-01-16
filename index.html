@@ -435,17 +435,30 @@
             const handlePrint = (mode) => {
                 setShowPrintModal(false);
                 let sectionsToPrint = [];
-                if (mode === 'current') sectionsToPrint = [activeTab];
-                else if (mode === 'all') sectionsToPrint = sectionsConfig.map(s => s.id);
-                else if (mode === 'custom') sectionsToPrint = selectedForPrint;
+                if (mode === 'current') {
+                    sectionsToPrint = [activeTab];
+                } else if (mode === 'all') {
+                    sectionsToPrint = sectionsConfig.map(s => s.id);
+                } else if (mode === 'custom') {
+                    sectionsToPrint = selectedForPrint;
+                }
+
                 setPrintSections(sectionsToPrint);
                 setIsPrinting(true);
-                setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
+
+                // Wait for render update then print
+                setTimeout(() => {
+                    window.print();
+                    setIsPrinting(false);
+                }, 100);
             };
 
             const togglePrintSelection = (id) => {
-                if (selectedForPrint.includes(id)) setSelectedForPrint(selectedForPrint.filter(s => s !== id));
-                else setSelectedForPrint([...selectedForPrint, id]);
+                if (selectedForPrint.includes(id)) {
+                    setSelectedForPrint(selectedForPrint.filter(s => s !== id));
+                } else {
+                    setSelectedForPrint([...selectedForPrint, id]);
+                }
             };
 
             const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1037,7 +1050,7 @@
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
                             
                             {/* MOVIDO PARA CÁ: Aluguel Atual */}
-                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} highlight={true} />
+                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.showSavings} highlight={true} />
 
                             <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
                             
@@ -1073,7 +1086,7 @@
                                     <span className="block text-xs opacity-75">Parcela Estimada (Mensal)</span>
                                     <strong className="text-xl">{formatMoney(results.parcela)}</strong>
                                 </div>
-                                {config.hasSavings && (
+                                {config.showSavings && (
                                     <div className="text-sm text-blue-800 text-right">
                                         <span className="block text-xs opacity-75">Comparativo</span>
                                         <span>{results.parcela > parseInt(inputs.projetoAluguelAtual)/100 ? "Paga mais que o aluguel" : "Paga menos que o aluguel"}</span>
