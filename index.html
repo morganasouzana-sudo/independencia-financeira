@@ -616,6 +616,7 @@
                 
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
+                // Importante: Se o projeto não tem savings (ex: viagem), o valor é 0.
                 const projEconomia = config.hasSavings ? parseInt(inputs.projetoAluguelAtual || "0") / 100 : 0; 
                 const projMes = inputs.projetoAno * 12;
                 
@@ -1056,6 +1057,30 @@
                             <InputGroup label={config.termLabel} icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} hidden={!config.showFinancing} />
                             <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
                         </div>
+                        
+                         {/* NEW: Installment Display */}
+                         {config.showFinancing && (
+                             <div className="mt-6 pt-4 border-t border-blue-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="text-sm text-blue-800">
+                                    <span className="block text-xs opacity-75">Valor Financiado</span>
+                                    <strong>{formatMoney(Math.max(0, parseInt(inputs.projetoValor) - parseInt(inputs.projetoEntrada))/100)}</strong>
+                                </div>
+                                <div className="text-sm text-blue-800 text-right sm:text-center">
+                                    <span className="block text-xs opacity-75">Parcela Estimada (Mensal)</span>
+                                    <strong className="text-xl">{formatMoney(results.parcela)}</strong>
+                                </div>
+                                {config.hasSavings && (
+                                    <div className="text-sm text-blue-800 text-right">
+                                        <span className="block text-xs opacity-75">Comparativo</span>
+                                        <span>{results.parcela > parseInt(inputs.projetoAluguelAtual)/100 ? "Paga mais que o aluguel" : "Paga menos que o aluguel"}</span>
+                                        <div className={`font-bold ${results.parcela > parseInt(inputs.projetoAluguelAtual)/100 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                            {results.parcela > parseInt(inputs.projetoAluguelAtual)/100 ? '+' : ''}
+                                            {formatMoney(results.parcela - parseInt(inputs.projetoAluguelAtual)/100)}
+                                        </div>
+                                    </div>
+                                )}
+                             </div>
+                         )}
                     </div>
                     
                     {/* NOVO: OTIMIZADOR DE ESTRATÉGIA E COMPARATIVO GLOBAL */}
