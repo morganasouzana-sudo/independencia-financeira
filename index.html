@@ -123,7 +123,7 @@
             </div>
         );
 
-        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "", compact = false, hidden = false }) => {
+        const InputGroup = ({ label, icon: Icon, value, onChange, prefix = "R$ ", type = "currency", suffix = "", helpText = "", compact = false, hidden = false, highlight = false }) => {
             if (hidden) return null;
             const handleChange = (e) => {
                 let val = e.target.value;
@@ -148,21 +148,21 @@
             return (
                 <div className={compact ? "mb-2" : "mb-4"}>
                     {label && (
-                        <label className={`block text-sm font-medium text-gray-700 ${compact ? "mb-0.5" : "mb-1"}`}>
+                        <label className={`block text-sm font-medium ${highlight ? "text-blue-800 font-bold" : "text-gray-700"} ${compact ? "mb-0.5" : "mb-1"}`}>
                             {label}
                         </label>
                     )}
                     <div className="relative rounded-md shadow-sm group">
                         {Icon && (
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Icon className="h-4 w-4 text-gray-400" />
+                                <Icon className={`h-4 w-4 ${highlight ? "text-blue-600" : "text-gray-400"}`} />
                             </div>
                         )}
                         <input
                             type={type === "number" ? "number" : "text"}
                             value={displayValue()}
                             onChange={handleChange}
-                            className={`block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors ${Icon ? 'pl-9' : 'pl-3'} ${suffix ? 'pr-10' : 'pr-3'} ${compact ? 'py-1.5' : 'py-3'}`}
+                            className={`block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border transition-colors ${Icon ? 'pl-9' : 'pl-3'} ${suffix ? 'pr-10' : 'pr-3'} ${compact ? 'py-1.5' : 'py-3'} ${highlight ? 'bg-blue-50 border-blue-200' : ''}`}
                             placeholder="0,00"
                         />
                         {suffix && (
@@ -171,7 +171,7 @@
                             </div>
                         )}
                     </div>
-                    {helpText && <p className="text-xs text-slate-500 mt-1 leading-tight">{helpText}</p>}
+                    {helpText && <p className={`text-xs mt-1 leading-tight ${highlight ? "text-blue-600" : "text-slate-500"}`}>{helpText}</p>}
                 </div>
             );
         };
@@ -323,7 +323,7 @@
                     showFinancing: true,
                     showSavings: true,
                     savingsLabel: "Aluguel Atual", 
-                    savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", 
+                    savingsHelp: "Valor atual. O simulador reajusta este valor pela inflação anualmente na comparação.", 
                     entryLabel: "Entrada Disponível",
                     rateLabel: "Taxa do Contrato",
                     termLabel: "Prazo (Anos)"
@@ -335,7 +335,7 @@
                     showFinancing: true,
                     showSavings: true,
                     savingsLabel: "Gasto Transporte", 
-                    savingsHelp: "Gasto com Uber/Taxi que será economizado.", 
+                    savingsHelp: "Gasto com Uber/Taxi que será economizado (reajustado anualmente).", 
                     entryLabel: "Entrada / Veículo Atual",
                     rateLabel: "Taxa Financiamento",
                     termLabel: "Prazo (Anos)"
@@ -371,7 +371,7 @@
                     showFinancing: true,
                     showSavings: true,
                     savingsLabel: "Lucro Estimado/Mês", 
-                    savingsHelp: "Retorno mensal líquido esperado do negócio.", 
+                    savingsHelp: "Retorno mensal líquido esperado do negócio (projetado com inflação).", 
                     entryLabel: "Capital Próprio",
                     rateLabel: "Taxa Empréstimo PJ",
                     termLabel: "Prazo Pagamento (Anos)"
@@ -383,7 +383,7 @@
                     showFinancing: true,
                     showSavings: true,
                     savingsLabel: "Economia Gerada", 
-                    savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", 
+                    savingsHelp: "Valor mensal economizado ou gerado pelo projeto (corrigido).", 
                     entryLabel: "Valor Disponível",
                     rateLabel: "Taxa de Juros",
                     termLabel: "Prazo (Anos)"
@@ -1037,7 +1037,7 @@
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
                             
                             {/* MOVIDO PARA CÁ: Aluguel Atual */}
-                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
+                            <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} highlight={true} />
 
                             <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
                             
