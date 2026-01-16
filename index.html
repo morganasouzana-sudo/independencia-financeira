@@ -252,12 +252,12 @@
                 aportesExtras: [], 
 
                 // Projetos
-                projetoTipo: "imovel", // NOVO: imovel | carro | viagem | educacao | outro
+                projetoTipo: "imovel", 
                 projetoValor: "50000000",
                 projetoAno: 0, 
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
-                projetoTipoTaxa: "nominal",
+                projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
                 projetoPrazo: 30,
                 projetoAluguelAtual: "0", 
 
@@ -266,7 +266,7 @@
                 sensTaxaExtra: 1.0,
 
                 // Estrategia Amortizacao
-                estrategiaAmortizacao: 50
+                estrategiaAmortizacao: 50 // 0 a 100%
             });
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
@@ -289,19 +289,85 @@
 
             const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); 
 
-            // Project Type Configs
+            // Project Type Configs - Expanded
             const projectTypes = {
-                imovel: { label: "Imóvel", icon: Home, savingsLabel: "Aluguel Atual", savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", hasSavings: true },
-                carro: { label: "Veículo", icon: Car, savingsLabel: "Gasto Transporte Atual", savingsHelp: "Gasto com Uber/Taxi que será economizado.", hasSavings: true },
-                viagem: { label: "Viagem / Intercâmbio", icon: Plane, savingsLabel: "Custo Recorrente", savingsHelp: "Se a viagem substituir um custo mensal, informe aqui. Caso contrário, 0.", hasSavings: true },
-                educacao: { label: "Educação / Curso", icon: GraduationCap, savingsLabel: "Mensalidade Atual", savingsHelp: "Se for substituir uma escola atual.", hasSavings: true },
-                negocio: { label: "Empreender", icon: Store, savingsLabel: "Lucro Estimado/Mês", savingsHelp: "Retorno mensal esperado do negócio.", hasSavings: true },
-                outro: { label: "Outro Projeto", icon: Target, savingsLabel: "Economia Gerada", savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", hasSavings: true },
+                imovel: { 
+                    title: "Simular Aquisição de Imóvel",
+                    label: "Valor do Imóvel", 
+                    icon: Home, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Aluguel Atual", 
+                    savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", 
+                    entryLabel: "Entrada Disponível",
+                    rateLabel: "Taxa do Contrato",
+                    termLabel: "Prazo (Anos)"
+                },
+                carro: { 
+                    title: "Simular Aquisição de Veículo",
+                    label: "Preço do Veículo", 
+                    icon: Car, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Gasto Transporte", 
+                    savingsHelp: "Gasto com Uber/Taxi que será economizado.", 
+                    entryLabel: "Entrada / Veículo Atual",
+                    rateLabel: "Taxa Financiamento",
+                    termLabel: "Prazo (Anos)"
+                },
+                viagem: { 
+                    title: "Planejamento de Viagem",
+                    label: "Custo Total da Viagem", 
+                    icon: Plane, 
+                    showFinancing: true,
+                    showSavings: false, // Viagem geralmente é gasto, não investimento/troca
+                    savingsLabel: "Custo Recorrente", 
+                    savingsHelp: "", 
+                    entryLabel: "Dinheiro Guardado",
+                    rateLabel: "Juros Parcelamento",
+                    termLabel: "Prazo Pagamento (Anos)"
+                },
+                educacao: { 
+                    title: "Planejamento Educacional",
+                    label: "Custo Total do Curso", 
+                    icon: GraduationCap, 
+                    showFinancing: true,
+                    showSavings: false,
+                    savingsLabel: "Mensalidade Atual", 
+                    savingsHelp: "", 
+                    entryLabel: "Valor Disponível",
+                    rateLabel: "Juros Financiamento",
+                    termLabel: "Prazo (Anos)"
+                },
+                negocio: { 
+                    title: "Investimento em Negócio",
+                    label: "Investimento Inicial", 
+                    icon: Store, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Lucro Estimado/Mês", 
+                    savingsHelp: "Retorno mensal líquido esperado do negócio.", 
+                    entryLabel: "Capital Próprio",
+                    rateLabel: "Taxa Empréstimo PJ",
+                    termLabel: "Prazo Pagamento (Anos)"
+                },
+                outro: { 
+                    title: "Outro Projeto",
+                    label: "Valor do Projeto", 
+                    icon: Target, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Economia Gerada", 
+                    savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", 
+                    entryLabel: "Valor Disponível",
+                    rateLabel: "Taxa de Juros",
+                    termLabel: "Prazo (Anos)"
+                },
             };
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v11'); // Bump version
+                let saved = localStorage.getItem('financial_plan_v11'); 
                 
                 if (!saved) {
                     saved = localStorage.getItem('financial_plan_v10') || localStorage.getItem('financial_plan_v9');
@@ -314,7 +380,7 @@
                         if (parsed.estrategiaAmortizacao === undefined) parsed.estrategiaAmortizacao = 50; 
                         if (parsed.projetoAno === undefined) parsed.projetoAno = 0;
                         if (parsed.projetoTipoTaxa === undefined) parsed.projetoTipoTaxa = "nominal"; 
-                        if (parsed.projetoTipo === undefined) parsed.projetoTipo = "imovel"; // Default migration
+                        if (parsed.projetoTipo === undefined) parsed.projetoTipo = "imovel"; 
                         setInputs(prev => ({ ...prev, ...parsed }));
                     } catch (e) { console.error("Erro ao carregar", e); }
                 }
@@ -457,55 +523,23 @@
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
                 const pieData = [{ name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' }, { name: 'Juros', value: totalJuros, color: '#10b981' }];
 
-                // --- MARCOS DINÂMICOS (ATUALIZADO) ---
+                // --- MARCOS ---
                 const formatLabel = (v) => {
-                    if (v >= 1000000) {
-                        const m = v / 1000000;
-                        return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões");
-                    }
+                    if (v >= 1000000) { const m = v / 1000000; return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões"); }
                     return (v / 1000) + "k";
                 };
-
                 let marcosList = [];
                 const tetoMarcos = Math.max(montanteNecessario * 1.2, saldoFinalAcumulacao, 1000000);
-                
-                if (milestoneMode === '100k') { 
-                    for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
-                } else if (milestoneMode === '500k') { 
-                    for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
-                } else if (milestoneMode === '1m') { 
-                    for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: formatLabel(v) }); 
-                } else {
-                    marcosList = [
-                        { valor: 100000, nome: "100 Mil" },
-                        { valor: 500000, nome: "Meio Milhão" },
-                        { valor: 1000000, nome: "1º Milhão", especial: true },
-                        { valor: 2000000, nome: "2 Milhões" },
-                        { valor: 5000000, nome: "5 Milhões" },
-                        { valor: 10000000, nome: "10 Milhões" }
-                    ];
-                }
-
-                const addIfMissing = (val, name, props={}) => {
-                    if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) {
-                        marcosList.push({ valor: val, nome: name, ...props });
-                    } else {
-                        const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000);
-                        if (props.alvo) { existing.nome = name; existing.alvo = true; }
-                        if (props.especial) { existing.especial = true; }
-                    }
-                };
-                
+                if (milestoneMode === '100k') { for(let v = 100000; v <= tetoMarcos; v += 100000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
+                else if (milestoneMode === '500k') { for(let v = 500000; v <= tetoMarcos; v += 500000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
+                else if (milestoneMode === '1m') { for(let v = 1000000; v <= tetoMarcos; v += 1000000) marcosList.push({ valor: v, nome: formatLabel(v) }); }
+                else { marcosList = [{ valor: 100000, nome: "100 Mil" }, { valor: 500000, nome: "Meio Milhão" }, { valor: 1000000, nome: "1º Milhão", especial: true }, { valor: 2000000, nome: "2 Milhões" }, { valor: 5000000, nome: "5 Milhões" }, { valor: 10000000, nome: "10 Milhões" }]; }
+                const addIfMissing = (val, name, props={}) => { if (!marcosList.some(m => Math.abs(m.valor - val) < 1000)) marcosList.push({ valor: val, nome: name, ...props }); else { const existing = marcosList.find(m => Math.abs(m.valor - val) < 1000); if (props.alvo) { existing.nome = name; existing.alvo = true; } if (props.especial) existing.especial = true; } };
                 addIfMissing(montanteNecessario, "Liberdade Financeira", { alvo: true });
-                const umMilhao = marcosList.find(m => Math.abs(m.valor - 1000000) < 1000);
-                if(umMilhao) umMilhao.especial = true;
-
+                const umMilhao = marcosList.find(m => Math.abs(m.valor - 1000000) < 1000); if(umMilhao) umMilhao.especial = true;
                 marcosList.sort((a,b) => a.valor - b.valor);
                 marcosList = marcosList.map(m => ({ ...m, atingidoEm: null }));
-                simBase.data.forEach(ponto => {
-                    const total = ponto.saldoLiquido + ponto.saldoRestrito;
-                    marcosList.forEach(marco => { if (!marco.atingidoEm && total >= marco.valor) marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes }; });
-                });
+                simBase.data.forEach(ponto => { const total = ponto.saldoLiquido + ponto.saldoRestrito; marcosList.forEach(marco => { if (!marco.atingidoEm && total >= marco.valor) marco.atingidoEm = { ano: ponto.ano, mes: ponto.mes }; }); });
 
                 const sensAporteVal = parseInt(inputs.sensAporteExtra || "0") / 100;
                 const simSensAporte = runSimulation({ apMensal: aporteMensal + sensAporteVal });
@@ -515,47 +549,37 @@
                 const simSensTaxa = runSimulation({ txMensal: novaTaxaMensal });
 
                 const inflacaoData = [];
-                for(let y=0; y<=30; y+=5) {
-                    const fator = Math.pow(1 + taxaInflacao, y);
-                    inflacaoData.push({ ano: y, custo: Math.round(saqueMensal * fator), perdaPoder: Math.round(100 - (100/fator)) });
-                }
+                for(let y=0; y<=30; y+=5) { const fator = Math.pow(1 + taxaInflacao, y); inflacaoData.push({ ano: y, custo: Math.round(saqueMensal * fator), perdaPoder: Math.round(100 - (100/fator)) }); }
 
-                // Projetos
+                // --- PROJETOS & OTIMIZADOR ---
+                const config = projectTypes[inputs.projetoTipo] || projectTypes.imovel; // Fallback
+                
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
-                const projAluguel = parseInt(inputs.projetoAluguelAtual || "0") / 100; 
+                // Importante: Se o projeto não tem savings (ex: viagem), o valor é 0.
+                const projEconomia = config.hasSavings ? parseInt(inputs.projetoAluguelAtual || "0") / 100 : 0; 
                 const projMes = inputs.projetoAno * 12;
-                
-                // Taxa Financiamento: Conversão Nominal -> Real para comparação justa
                 const taxaFinAnualInput = parseFloat(inputs.projetoTaxaFin) / 100;
                 
                 let taxaFinAnualReal, taxaFinMensalReal, taxaFinMensalNominal;
-                
                 if (inputs.projetoTipoTaxa === 'ipca') {
-                    // IPCA+: A taxa inserida já é a taxa real (spread). 
-                    // A correção monetária (inflação) apenas mantém o valor da dívida constante em termos reais.
                     taxaFinAnualReal = taxaFinAnualInput;
-                    // A taxa nominal para cálculo de parcela inicial seria (1+real)*(1+inf) - 1
                     const taxaNominalEquiv = ((1 + taxaFinAnualInput) * (1 + taxaInflacao)) - 1;
                     taxaFinMensalNominal = Math.pow(1 + taxaNominalEquiv, 1/12) - 1;
                 } else {
-                    // Nominal (Pré/TR): A taxa inserida é a nominal total.
-                    // Custo Efetivo Real = ((1 + nominal) / (1 + inflacao)) - 1
                     taxaFinAnualReal = ((1 + taxaFinAnualInput) / (1 + taxaInflacao)) - 1;
                     taxaFinMensalNominal = Math.pow(1 + taxaFinAnualInput, 1/12) - 1;
                 }
-                
-                taxaFinMensalReal = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
-                
+                const taxaFinMensalReal_Calc = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
+
                 const projPrazoMeses = inputs.projetoPrazo * 12;
                 const valorFinanciado = Math.max(0, projValor - projEntrada);
-                
                 const parcelaNominal = valorFinanciado > 0 && taxaFinMensalNominal > 0 ? 
                     valorFinanciado * (taxaFinMensalNominal * Math.pow(1 + taxaFinMensalNominal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensalNominal, projPrazoMeses) - 1) : 
                     valorFinanciado / projPrazoMeses;
 
-                // --- ESTRATÉGIA HÍBRIDA GLOBAL (CORRIGIDO) ---
-                const capacidadeBase = aporteMensal + projAluguel;
+                // Capacidade considera aporte + economia gerada pelo projeto
+                const capacidadeBase = aporteMensal + projEconomia;
                 
                 const runHybridSimulation = (amortPercentage, scenarioType) => {
                     let saldoLiq = patrimonioLiq;
@@ -564,7 +588,7 @@
                     let mesFim = null;
                     let saldoFinal = 0;
                     let dividaQuitadaEm = null;
-                    let totalPagoDívida = 0; // Acumula pagamentos reais
+                    let totalPagoDívida = 0;
 
                     if (scenarioType === 'financiamento') {
                         saldoLiq -= projEntrada;
@@ -573,11 +597,9 @@
 
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
-                        
                         saldoLiq *= (1 + taxaMensalInv);
                         if (isAcc) saldoRest *= (1 + taxaMensalInv);
-                        // A dívida cresce à taxa real (pois estamos descontando inflação da nominal)
-                        if (divida > 0) divida *= (1 + taxaFinMensalReal);
+                        if (divida > 0) divida *= (1 + taxaFinMensalReal_Calc);
 
                         let disponivelParaAlocacao = 0;
 
@@ -585,16 +607,19 @@
                             const extras = getExtraInflow(m, true);
                             
                             if (scenarioType === 'aluguel') {
+                                // Cenário aluguel: não tem a economia, usa apenas o aporte.
                                 disponivelParaAlocacao = aporteMensal + extras;
                             } else {
+                                // Cenário compra/projeto: Capacidade total disponível (Aporte + Economia)
                                 let caixaBruto = capacidadeBase + extras;
                                 
                                 if (m <= projMes) {
-                                     caixaBruto -= projAluguel;
+                                     // Antes de realizar o projeto, ainda não tem a economia/retorno.
+                                     // Se for um imóvel, ainda paga aluguel. Se for negócio, ainda não lucra.
+                                     caixaBruto -= projEconomia; 
                                      if (m === projMes) caixaBruto -= projEntrada;
                                 } else {
-                                     // O valor da parcela a pagar é NOMINAL, então em termos reais ele cai
-                                     // Parcela Real no mês m = Parcela Nominal / (1 + inflação)^m
+                                     // Projeto ativo. Paga parcela se tiver.
                                      const parcelaReal = parcelaNominal / Math.pow(1 + taxaInflacaoMensal, m);
 
                                      if (divida > 0) {
@@ -604,7 +629,7 @@
                                              totalPagoDívida += parcelaReal;
                                          } else {
                                              const falta = parcelaReal - caixaBruto;
-                                             totalPagoDívida += caixaBruto; // Pagou o que tinha
+                                             totalPagoDívida += caixaBruto;
                                              caixaBruto = 0;
                                              divida -= parcelaReal;
                                              saldoLiq -= falta;
@@ -629,7 +654,6 @@
                             }
                         } else {
                             if (m === mesesAcumulacao + 1) { saldoLiq += saldoRest; saldoRest = 0; }
-                            
                             const extras = getExtraInflow(m, false);
                             let despesaTotal = saqueMensal;
                             
@@ -639,12 +663,10 @@
                                 divida -= parcelaReal;
                                 totalPagoDívida += parcelaReal;
                             }
-
                             disponivelParaAlocacao = extras - despesaTotal;
                         }
 
                         saldoLiq += disponivelParaAlocacao;
-
                         if (divida < 0) divida = 0;
 
                         if (saldoLiq < 0 && !isAcc) {
@@ -659,21 +681,11 @@
                 const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
                 
-                const simAluguel = runHybridSimulation(0, 'aluguel');
+                // const simAluguel = runHybridSimulation(0, 'aluguel');
                 const simHibrida = runHybridSimulation(inputs.estrategiaAmortizacao, 'financiamento');
                 const simInvestirTudo = runHybridSimulation(0, 'financiamento');
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
 
-                // -- CALCULO DO APORTE NECESSÁRIO (GOAL SEEK) --
-                const calcRequiredAporte = (scenarioType, targetAmort = 50) => {
-                   let low = 0; 
-                   let high = 50000; 
-                   let found = 0;
-                   const baseRun = (scenarioType === 'aluguel') ? simAluguel : simHibrida;
-                   if (!baseRun.mesFim) return 0;
-                   return Math.round(saqueMensal * 0.2); 
-                };
-                
                 // Helper melhorado
                 const solveRequiredExtra = (scenarioType, targetAmort) => {
                      const res = (targetAmort === 100 ? simAmortizarTudo : (targetAmort === 0 ? simInvestirTudo : simHibrida));
@@ -683,12 +695,9 @@
                      return Math.round(aporteMensal * ratioFalta * 0.5); // Ajuste
                 };
 
-                const reqAluguel = solveRequiredExtra('aluguel', 0);
                 const reqHibrido = solveRequiredExtra('financiamento', inputs.estrategiaAmortizacao);
                 const reqInvestir = solveRequiredExtra('financiamento', 0);
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
-                
-                // Critério de melhor cenário
                 
                 const scores = [
                     { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal },
@@ -696,7 +705,6 @@
                     { name: 'amortizar', val: simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal }
                 ];
                 
-                // Ordena por maior patrimônio (se não falir)
                 scores.sort((a,b) => b.val - a.val);
                 const winner = scores[0];
                 
@@ -707,7 +715,6 @@
                 else if (winner.name === 'amortizar') melhorEstrat = "Amortizar 100% da Sobra";
 
                 const comparativoHibrido = [
-                    // { nome: "Manter Aluguel + Investir", valor: simAluguel.saldoFinal, quitacao: null, type: 'aluguel', mesFim: simAluguel.mesFim, required: reqAluguel, totalPago: 0, active: winner.name === 'aluguel' },
                     { nome: "Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' },
                     { nome: `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' },
                     { nome: "Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' }
@@ -715,17 +722,14 @@
                 
                 const simAvista = runSimulation({
                     extraWithdrawFn: (m) => m === projMes ? projValor : 0,
-                    extraIncomeFn: (m) => m > projMes ? projAluguel : 0
+                    extraIncomeFn: (m) => m > projMes ? projEconomia : 0
                 });
 
                 const simFinanc = simHibrida;
-
-                const impactoAvista = projAluguel;
-                const impactoFinanc = projAluguel - parcelaNominal;
+                const impactoAvista = projEconomia;
+                const impactoFinanc = projEconomia - parcelaNominal;
 
                 let explicacaoProj = "";
-                
-                // Comparação focada em estratégias de compra
                 const finalHibrido = simHibrida.mesFim ? -1 : simHibrida.saldoFinal;
                 const finalInvestir = simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal;
                 const finalAmortizar = simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal;
@@ -768,7 +772,7 @@
                     }
                 }
 
-                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: projectTypes[inputs.projetoTipo] };
+                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: config };
             }, [inputs, milestoneMode]); 
 
             // Formatadores
@@ -935,7 +939,7 @@
                 const config = results.projectConfigs;
                 return (
                 <div className="section-break">
-                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Projetos de Vida (Estratégia de Compra)</h2>}
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Projetos de Vida (Estratégia de Aquisição)</h2>}
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 no-print">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Aquisição de Projeto</h3>
@@ -974,9 +978,9 @@
                                 </p>
                             </div>
 
-                            <InputGroup label="Taxa do Contrato" icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} />
+                            <InputGroup label={config.rateLabel} icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} />
                             
-                            <InputGroup label="Prazo Financiamento" icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
+                            <InputGroup label={config.termLabel} icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} />
                             <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.hasSavings} />
                         </div>
                     </div>
