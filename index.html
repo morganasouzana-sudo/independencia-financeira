@@ -514,6 +514,7 @@
                                 saldoRest = 0; 
                             }
                             const entradaExtra = getExtraInflow(m, false);
+                            // Saque é sempre real (ajustado pela inflação implicitamente no cálculo real)
                             movimentoMes = entradaExtra - saqueMensal;
                             saldoLiq += movimentoMes;
                         }
@@ -601,6 +602,9 @@
                     valorEntradaFinal += fgtsProjectedValue;
                 }
                 const valorFinanciado = Math.max(0, projValor - valorEntradaFinal);
+                // Correct calculation of financed value in the chart: Convert to Reais FIRST
+                const valorFinanciadoReais = Math.max(0, (parseInt(inputs.projetoValor || "0")/100) - valorEntradaFinal);
+                
                 const parcelaNominal = valorFinanciado > 0 && taxaFinMensalNominal > 0 ? valorFinanciado * (taxaFinMensalNominal * Math.pow(1 + taxaFinMensalNominal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensalNominal, projPrazoMeses) - 1) : valorFinanciado / projPrazoMeses;
                 const capacidadeBase = aporteMensal + projEconomia;
                 
@@ -733,7 +737,7 @@
                     }
                 }
 
-                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: config, fgtsProjectedValue, valorEntradaFinal };
+                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: config, fgtsProjectedValue, valorEntradaFinal, valorFinanciadoReais };
             }, [inputs, milestoneMode]); 
 
             const formatTempo = (m) => { if (!m) return "Nunca"; const anos = Math.floor(m/12); const meses = m%12; if (anos === 0) return `${meses}m`; return `${anos}a ${meses}m`; };
@@ -782,6 +786,7 @@
                             </div>
                         </div>
                     </div>
+                    {/* ... (rest of renderSimulacao) ... */}
                     <Card className="h-80 mb-6 mt-6">
                         <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">Evolução Patrimonial <span className="text-sm font-normal text-slate-500">Verde: Liquidez | Cinza: Bens</span></h3>
                         <ResponsiveContainer width="100%" height="100%">
@@ -1006,7 +1011,7 @@
                              <div className="mt-6 pt-4 border-t border-blue-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                                 <div className="text-sm text-blue-800">
                                     <span className="block text-xs opacity-75">Valor Financiado</span>
-                                    <strong>{formatMoney(Math.max(0, parseInt(inputs.projetoValor || "0") - results.valorEntradaFinal)/100)}</strong>
+                                    <strong>{formatMoney(results.valorFinanciadoReais)}</strong>
                                 </div>
                                 <div className="text-sm text-blue-800 text-right sm:text-center">
                                     <span className="block text-xs opacity-75">Parcela Estimada (Mensal)</span>
