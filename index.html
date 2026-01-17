@@ -222,7 +222,7 @@
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio || 0) / 100)}</span>
                     </div>
                     <div>
-                        <span className="block text-slate-400 text-xs">Aporte Mensal</span>
+                        <span className="block text-slate-400 text-xs">Aporte Mensal (Inicial)</span>
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte || 0) / 100)}</span>
                     </div>
                     <div>
@@ -498,6 +498,7 @@
                                 saldoRest = 0; 
                             }
                             const entradaExtra = getExtraInflow(m, false);
+                            // Saque é sempre real (ajustado pela inflação implicitamente no cálculo real)
                             movimentoMes = entradaExtra - saqueMensal;
                             saldoLiq += movimentoMes;
                         }
@@ -551,6 +552,7 @@
                 const totalJuros = Math.max(0, saldoFinalAcumulacao - totalInvestido);
                 const pieData = [{ name: 'Aportes', value: Math.max(0, Math.min(totalInvestido, saldoFinalAcumulacao)), color: '#3b82f6' }, { name: 'Juros', value: totalJuros, color: '#10b981' }];
 
+                // ... (Rest of logic: Marcos, Sensibilidade, etc. remains same)
                 // --- MARCOS ---
                 const formatLabel = (v) => {
                     if (v >= 1000000) { const m = v / 1000000; return m + (Number.isInteger(m) ? "" : ("." + (v % 1000000)/100000)) + (m === 1 ? " Milhão" : " Milhões"); }
@@ -652,8 +654,7 @@
 
                 const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
-                
-                // const simAluguel = runHybridSimulation(0, 'aluguel');
+                const simAluguel = runHybridSimulation(0, 'aluguel');
                 const simHibrida = runHybridSimulation(inputs.estrategiaAmortizacao, 'financiamento');
                 const simInvestirTudo = runHybridSimulation(0, 'financiamento');
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
@@ -673,7 +674,7 @@
                 const scores = [ { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal }, { name: 'investir', val: simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal }, { name: 'amortizar', val: simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal } ];
                 scores.sort((a,b) => b.val - a.val);
                 const winner = scores[0];
-                
+
                 let melhorEstrat = "";
                 if (winner.val < 0) melhorEstrat = "Inviável (Todos quebram)";
                 else if (winner.name === 'hibrido') melhorEstrat = `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`;
@@ -1367,6 +1368,7 @@
                                                 </div>
                                                 
                                                 <div className="space-y-2 mb-3 max-h-32 overflow-y-auto scrollbar-thin">
+                                                    {inputs.fasesAporte.length === 0 && <p className="text-xs text-slate-400 italic">Nenhuma fase adicionada. Usará o aporte inicial.</p>}
                                                     {inputs.fasesAporte.map((fase) => (
                                                         <div key={fase.id} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm">
                                                             <span>Ano {fase.ano}: <strong>{formatMoney(parseInt(fase.valor)/100)}</strong></span>
