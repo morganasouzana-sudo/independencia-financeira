@@ -222,7 +222,7 @@
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio || 0) / 100)}</span>
                     </div>
                     <div>
-                        <span className="block text-slate-400 text-xs">Aporte Mensal (Inicial)</span>
+                        <span className="block text-slate-400 text-xs">Aporte Mensal</span>
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte || 0) / 100)}</span>
                     </div>
                     <div>
@@ -281,10 +281,10 @@
                 // Projetos
                 projetoTipo: "imovel", 
                 projetoValor: "50000000",
-                projetoAno: 0, 
+                projetoAno: 0, // Default 0 = Agora
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
-                projetoTipoTaxa: "nominal",
+                projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
                 projetoPrazo: 30,
                 projetoAluguelAtual: "0", 
 
@@ -293,22 +293,22 @@
                 sensTaxaExtra: 1.0,
 
                 // Estrategia Amortizacao
-                estrategiaAmortizacao: 50 
+                estrategiaAmortizacao: 50 // 0 a 100%
             });
-
-            // State local para nova fase de aporte
-            const [novaFase, setNovaFase] = useState({ ano: "", valor: "" });
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
             const [activeTab, setActiveTab] = useState('simulacao'); 
             const [milestoneMode, setMilestoneMode] = useState('padrao'); 
-            const [showDetails, setShowDetails] = useState(false); 
-            const [tableMode, setTableMode] = useState('real'); 
+            const [showDetails, setShowDetails] = useState(false); // Toggle Tabela
+            const [tableMode, setTableMode] = useState('real'); // 'real' or 'nominal'
             
             // Print States
             const [showPrintModal, setShowPrintModal] = useState(false);
             const [isPrinting, setIsPrinting] = useState(false);
-            const [printSections, setPrintSections] = useState([]);
+            const [printSections, setPrintSections] = useState([]); // Lista de abas a imprimir
+
+            // Local state for phase adding
+            const [novaFase, setNovaFase] = useState({ ano: "", valor: "" });
 
             const sectionsConfig = [
                 { id: 'simulacao', label: 'Simulação Padrão' },
@@ -319,16 +319,82 @@
                 { id: 'risco', label: 'Análise de Risco' }
             ];
 
-            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); 
+            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); // Default all
 
-            // Project Type Configs
+            // Project Type Configs - Expanded
             const projectTypes = {
-                imovel: { title: "Simular Aquisição de Imóvel", label: "Valor do Imóvel", icon: Home, showFinancing: true, showSavings: true, savingsLabel: "Aluguel Atual", savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", entryLabel: "Entrada Disponível", rateLabel: "Taxa do Contrato", termLabel: "Prazo (Anos)" },
-                carro: { title: "Simular Aquisição de Veículo", label: "Preço do Veículo", icon: Car, showFinancing: true, showSavings: true, savingsLabel: "Gasto Transporte", savingsHelp: "Gasto com Uber/Taxi que será economizado.", entryLabel: "Entrada / Veículo Atual", rateLabel: "Taxa Financiamento", termLabel: "Prazo (Anos)" },
-                viagem: { title: "Planejamento de Viagem", label: "Custo Total da Viagem", icon: Plane, showFinancing: true, showSavings: false, savingsLabel: "Custo Recorrente", savingsHelp: "", entryLabel: "Dinheiro Guardado", rateLabel: "Juros Parcelamento", termLabel: "Prazo Pagamento (Anos)" },
-                educacao: { title: "Planejamento Educacional", label: "Custo Total do Curso", icon: GraduationCap, showFinancing: true, showSavings: false, savingsLabel: "Mensalidade Atual", savingsHelp: "", entryLabel: "Valor Disponível", rateLabel: "Juros Financiamento", termLabel: "Prazo (Anos)" },
-                negocio: { title: "Investimento em Negócio", label: "Investimento Inicial", icon: Store, showFinancing: true, showSavings: true, savingsLabel: "Lucro Estimado/Mês", savingsHelp: "Retorno mensal líquido esperado do negócio.", entryLabel: "Capital Próprio", rateLabel: "Taxa Empréstimo PJ", termLabel: "Prazo Pagamento (Anos)" },
-                outro: { title: "Outro Projeto", label: "Valor do Projeto", icon: Target, showFinancing: true, showSavings: true, savingsLabel: "Economia Gerada", savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", entryLabel: "Valor Disponível", rateLabel: "Taxa de Juros", termLabel: "Prazo (Anos)" },
+                imovel: { 
+                    title: "Simular Aquisição de Imóvel",
+                    label: "Valor do Imóvel", 
+                    icon: Home, 
+                    showFinancing: true,
+                    showSavings: true, // Corrigido de hasSavings para showSavings para consistência
+                    savingsLabel: "Aluguel Atual", 
+                    savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", 
+                    entryLabel: "Entrada Disponível",
+                    rateLabel: "Taxa do Contrato",
+                    termLabel: "Prazo (Anos)"
+                },
+                carro: { 
+                    title: "Simular Aquisição de Veículo",
+                    label: "Preço do Veículo", 
+                    icon: Car, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Gasto Transporte", 
+                    savingsHelp: "Gasto com Uber/Taxi que será economizado.", 
+                    entryLabel: "Entrada / Veículo Atual",
+                    rateLabel: "Taxa Financiamento",
+                    termLabel: "Prazo (Anos)"
+                },
+                viagem: { 
+                    title: "Planejamento de Viagem",
+                    label: "Custo Total da Viagem", 
+                    icon: Plane, 
+                    showFinancing: true,
+                    showSavings: false, // Viagem geralmente é gasto, não investimento/troca
+                    savingsLabel: "Custo Recorrente", 
+                    savingsHelp: "", 
+                    entryLabel: "Dinheiro Guardado",
+                    rateLabel: "Juros Parcelamento",
+                    termLabel: "Prazo Pagamento (Anos)"
+                },
+                educacao: { 
+                    title: "Planejamento Educacional",
+                    label: "Custo Total do Curso", 
+                    icon: GraduationCap, 
+                    showFinancing: true,
+                    showSavings: false,
+                    savingsLabel: "Mensalidade Atual", 
+                    savingsHelp: "", 
+                    entryLabel: "Valor Disponível",
+                    rateLabel: "Juros Financiamento",
+                    termLabel: "Prazo (Anos)"
+                },
+                negocio: { 
+                    title: "Investimento em Negócio",
+                    label: "Investimento Inicial", 
+                    icon: Store, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Lucro Estimado/Mês", 
+                    savingsHelp: "Retorno mensal líquido esperado do negócio.", 
+                    entryLabel: "Capital Próprio",
+                    rateLabel: "Taxa Empréstimo PJ",
+                    termLabel: "Prazo Pagamento (Anos)"
+                },
+                outro: { 
+                    title: "Outro Projeto",
+                    label: "Valor do Projeto", 
+                    icon: Target, 
+                    showFinancing: true,
+                    showSavings: true,
+                    savingsLabel: "Economia Gerada", 
+                    savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", 
+                    entryLabel: "Valor Disponível",
+                    rateLabel: "Taxa de Juros",
+                    termLabel: "Prazo (Anos)"
+                },
             };
 
             // --- LOAD & MIGRAÇÃO ---
@@ -384,21 +450,36 @@
                 setInputs(prev => ({ ...prev, fasesAporte: prev.fasesAporte.filter(f => f.id !== id) }));
             };
 
+            // --- PRINT LOGIC ---
             const openPrintModal = () => setShowPrintModal(true);
+            
             const handlePrint = (mode) => {
                 setShowPrintModal(false);
                 let sectionsToPrint = [];
-                if (mode === 'current') sectionsToPrint = [activeTab];
-                else if (mode === 'all') sectionsToPrint = sectionsConfig.map(s => s.id);
-                else if (mode === 'custom') sectionsToPrint = selectedForPrint;
+                if (mode === 'current') {
+                    sectionsToPrint = [activeTab];
+                } else if (mode === 'all') {
+                    sectionsToPrint = sectionsConfig.map(s => s.id);
+                } else if (mode === 'custom') {
+                    sectionsToPrint = selectedForPrint;
+                }
+
                 setPrintSections(sectionsToPrint);
                 setIsPrinting(true);
-                setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
+
+                // Wait for render update then print
+                setTimeout(() => {
+                    window.print();
+                    setIsPrinting(false);
+                }, 100);
             };
 
             const togglePrintSelection = (id) => {
-                if (selectedForPrint.includes(id)) setSelectedForPrint(selectedForPrint.filter(s => s !== id));
-                else setSelectedForPrint([...selectedForPrint, id]);
+                if (selectedForPrint.includes(id)) {
+                    setSelectedForPrint(selectedForPrint.filter(s => s !== id));
+                } else {
+                    setSelectedForPrint([...selectedForPrint, id]);
+                }
             };
 
             const formatMoney = (val) => {
@@ -424,6 +505,7 @@
                     taxaMensalInv = Math.pow(1 + taxaRetorno, 1/12) - 1;
                 }
                 
+                // Taxa Mensal da Inflação (para deflacionar parcelas nominais)
                 const taxaInflacaoMensal = Math.pow(1 + taxaInflacao, 1/12) - 1;
 
                 const mesesAcumulacao = inputs.anosAcumulacao * 12;
@@ -728,7 +810,6 @@
                             </div>
                         </div>
                     </div>
-                    {/* ... (rest of the component) ... */}
                     <Card className="h-80 mb-6 mt-6">
                         <h3 className="text-lg font-bold text-slate-700 mb-4 flex justify-between">Evolução Patrimonial <span className="text-sm font-normal text-slate-500">Verde: Liquidez | Cinza: Bens</span></h3>
                         <ResponsiveContainer width="100%" height="100%">
@@ -849,7 +930,76 @@
                 </div>
             );
 
-            // ... (Other render functions) ...
+            const renderMarcos = () => (
+                <div className="section-break">
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Marcos & Metas</h2>}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Trophy size={24} /></div>
+                                <h3 className="text-lg font-bold text-amber-900">O Primeiro Milhão</h3>
+                            </div>
+                            {results.marcos.find(m => m.nome === "1º Milhão" && m.atingidoEm) ? (
+                                <div>
+                                    <p className="text-3xl font-bold text-amber-800 mt-2">{formatTempo(results.marcos.find(m => m.nome === "1º Milhão").atingidoEm.mes)}</p>
+                                    <p className="text-sm text-amber-700 mt-1">Você atingirá essa marca no ano {results.marcos.find(m => m.nome === "1º Milhão").atingidoEm.ano}.</p>
+                                </div>
+                            ) : <p className="text-amber-800 font-medium mt-2">Não atingido na fase de acumulação.</p>}
+                        </Card>
+                        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600"><Target size={24} /></div>
+                                <h3 className="text-lg font-bold text-emerald-900">Liberdade Financeira</h3>
+                            </div>
+                            <div className="mt-2">
+                                <div className="flex justify-between text-xs text-emerald-700 font-medium mb-1">
+                                    <span>Progresso</span>
+                                    <span>{Math.min(100, (results.saldoFinalAcumulacao / results.montanteNecessario) * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-emerald-200 rounded-full h-2.5">
+                                    <div className="bg-emerald-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (results.saldoFinalAcumulacao / results.montanteNecessario) * 100)}%` }}></div>
+                                </div>
+                                <p className="text-sm text-emerald-700 mt-2">Meta: <strong>{formatMoney(results.montanteNecessario)}</strong></p>
+                            </div>
+                        </Card>
+                    </div>
+                    <Card>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2"><Flag className="w-5 h-5"/> Linha do Tempo</h3>
+                            <div className="relative group no-print">
+                                <select value={milestoneMode} onChange={(e) => setMilestoneMode(e.target.value)} className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-lg pl-3 pr-8 py-1.5 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer hover:bg-slate-200 transition-colors">
+                                    <option value="padrao">Inteligente (Padrão)</option>
+                                    <option value="100k">Passo a Passo (100k)</option>
+                                    <option value="500k">Grandes Saltos (500k)</option>
+                                    <option value="1m">Milionário (1M)</option>
+                                </select>
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"><ListFilter size={14} className="text-slate-500"/></div>
+                            </div>
+                        </div>
+                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
+                            {results.marcos.map((marco, idx) => (
+                                <div key={idx} className={`ml-6 relative ${!marco.atingidoEm ? 'opacity-50' : ''}`}>
+                                    <span className={`absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white ${marco.atingidoEm ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                        <div>
+                                            <h4 className={`font-bold ${marco.especial ? 'text-amber-600' : marco.alvo ? 'text-emerald-600' : 'text-slate-700'}`}>{marco.nome}</h4>
+                                            <p className="text-sm text-slate-500">{formatMoney(marco.valor)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            {marco.atingidoEm ? (
+                                                <>
+                                                    <div className="text-lg font-bold text-slate-800">{formatTempo(marco.atingidoEm.mes)}</div>
+                                                    <div className="text-xs text-slate-500">Ano {marco.atingidoEm.ano}</div>
+                                                </>
+                                            ) : <span className="text-xs font-medium px-2 py-1 bg-slate-200 rounded text-slate-500">Pendente</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+            );
 
             const renderProjetos = () => {
                 const config = results.projectConfigs;
@@ -876,8 +1026,13 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <InputGroup label={`Valor do ${config.label}`} icon={config.icon} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
                             <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
+                            
+                            {/* MOVIDO PARA CÁ: Aluguel Atual */}
                             <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.showSavings} highlight={true} />
+
                             <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
+                            
+                            {/* Novo Selector de Tipo de Taxa */}
                             <div className={`mb-4 ${!config.showFinancing && 'hidden'}`}>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Taxa</label>
                                 <select 
@@ -888,12 +1043,17 @@
                                     <option value="nominal">Nominal (Pré/TR)</option>
                                     <option value="ipca">Real (IPCA+)</option>
                                 </select>
-                                <p className="text-xs text-slate-500 mt-1">{inputs.projetoTipoTaxa === 'nominal' ? "A inflação 'corrói' o valor real da dívida." : "A dívida é corrigida pela inflação."}</p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {inputs.projetoTipoTaxa === 'nominal' ? "A inflação 'corrói' o valor real da dívida." : "A dívida é corrigida pela inflação."}
+                                </p>
                             </div>
+
                             <InputGroup label={config.rateLabel} icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} hidden={!config.showFinancing} />
+                            
                             <InputGroup label={config.termLabel} icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} hidden={!config.showFinancing} />
                         </div>
                         
+                         {/* NEW: Installment Display */}
                          {config.showFinancing && (
                              <div className="mt-6 pt-4 border-t border-blue-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                                 <div className="text-sm text-blue-800">
@@ -918,66 +1078,105 @@
                          )}
                     </div>
                     
+                    {/* NOVO: OTIMIZADOR DE ESTRATÉGIA E COMPARATIVO GLOBAL */}
                     <Card className="border-t-4 border-indigo-500 mb-6">
-                        <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2"><Sliders className="w-5 h-5"/> Estratégia de Pagamento: {config.label}</h3>
+                        <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                            <Sliders className="w-5 h-5"/> Estratégia de Pagamento: {config.label}
+                        </h3>
+                        
                         <div className="mb-4 bg-slate-50 p-4 rounded-lg">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal (Aporte + {config.savingsLabel}):</span>
+                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal Total (Aporte + {config.savingsLabel}):</span>
                                 <span className="text-lg font-bold text-emerald-700">{formatMoney(results.capacidadeBase)}</span>
                             </div>
-                            <p className="text-xs text-gray-500 mb-2">*O simulador usa essa capacidade para pagar a parcela. O excedente é alocado abaixo.</p>
+                            <p className="text-xs text-gray-500 mb-2">
+                                *O simulador usa essa capacidade para pagar a parcela. O excedente é alocado abaixo.
+                            </p>
                         </div>
+
                         {results.temExcedente ? (
                             <div className="mb-6">
-                                <p className="text-sm text-gray-600 mb-3">Sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?</p>
+                                <p className="text-sm text-gray-600 mb-3">
+                                    Sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?
+                                </p>
                                 <div className="bg-slate-50 p-4 rounded-lg">
                                     <div className="flex justify-between text-sm font-semibold mb-2">
                                         <span className="text-blue-600">Investir {100 - inputs.estrategiaAmortizacao}%</span>
                                         <span className="text-emerald-600">Amortizar {inputs.estrategiaAmortizacao}%</span>
                                     </div>
-                                    <input type="range" min="0" max="100" step="10" value={inputs.estrategiaAmortizacao} onChange={(e) => updateInput("estrategiaAmortizacao", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                                    <input 
+                                        type="range" 
+                                        min="0" 
+                                        max="100" 
+                                        step="10"
+                                        value={inputs.estrategiaAmortizacao} 
+                                        onChange={(e) => updateInput("estrategiaAmortizacao", parseInt(e.target.value))}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                    />
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-4 bg-orange-50 text-orange-800 rounded-lg text-sm flex gap-2 mb-4"><AlertCircle size={20}/><p>A parcela ({formatMoney(results.parcela)}) excede sua capacidade ({formatMoney(results.capacidadeBase)}). Você terá déficit.</p></div>
+                            <div className="p-4 bg-orange-50 text-orange-800 rounded-lg text-sm flex gap-2 mb-4">
+                                <AlertCircle size={20}/>
+                                <p>A parcela ({formatMoney(results.parcela)}) excede sua capacidade ({formatMoney(results.capacidadeBase)}). Você terá déficit.</p>
+                            </div>
                         )}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                             {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
                                 <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between relative pt-6 ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'}`}>
                                     {cenario.active && (
                                         <div className="absolute top-0 inset-x-0 flex justify-center -mt-3">
-                                            <div className="bg-amber-400 text-amber-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-amber-500"><Star size={12} fill="currentColor" /> Melhor Opção</div>
+                                            <div className="bg-amber-400 text-amber-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-amber-500">
+                                                <Star size={12} fill="currentColor" /> Melhor Opção
+                                            </div>
                                         </div>
                                     )}
-                                    <div><div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div></div>
+                                    <div>
+                                        <div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div>
+                                    </div>
                                     <div>
                                         <div className="text-xs text-gray-500 mt-2">Patrimônio Final (Legado)</div>
                                         {cenario.valor > 0 || !cenario.mesFim ? (
-                                            <>
-                                                <div className="text-lg font-bold text-gray-800">{formatMoney(cenario.valor)}</div>
-                                                <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={10}/> Vitalício (Sustentável)</div>
-                                            </>
+                                            <div className="text-lg font-bold text-gray-800">{formatMoney(cenario.valor)}</div>
                                         ) : (
                                             <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
                                         )}
                                         <div className="mt-2 text-xs">
-                                            {cenario.quitacao ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> : <span className="text-orange-500">Não quita antecip.</span>}
+                                            {cenario.quitacao 
+                                                ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
+                                                : <span className="text-orange-500">Não quita antecip.</span>
+                                            }
                                         </div>
                                         <div className="mt-2 text-xs pt-2 border-t border-gray-100">
-                                            <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/><span className="font-semibold text-gray-700">{formatMoney(cenario.totalPago)}</span>
+                                            <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/>
+                                            <span className="font-semibold text-gray-700">
+                                                {formatMoney(cenario.totalPago)}
+                                            </span>
                                         </div>
                                         {cenario.mesFim && (
-                                            <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600"><strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.</div>
+                                            <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600">
+                                                <strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.
+                                            </div>
                                         )}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                         {results.insights.length > 0 && (
+
+                        {/* SMART INSIGHTS */}
+                        {results.insights.length > 0 && (
                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <h4 className="text-amber-800 font-bold flex items-center gap-2 mb-2"><Lightbulb size={18}/> Insights do Consultor</h4>
+                                <h4 className="text-amber-800 font-bold flex items-center gap-2 mb-2">
+                                    <Lightbulb size={18}/> Insights do Consultor
+                                </h4>
                                 <ul className="space-y-2">
-                                    {results.insights.map((insight, i) => <li key={i} className="text-sm text-amber-900 flex gap-2"><span className="text-amber-500 mt-1">•</span>{insight.text}</li>)}
+                                    {results.insights.map((insight, i) => (
+                                        <li key={i} className="text-sm text-amber-900 flex gap-2">
+                                            <span className="text-amber-500 mt-1">•</span>
+                                            {insight.text}
+                                        </li>
+                                    ))}
                                 </ul>
                              </div>
                         )}
@@ -985,13 +1184,15 @@
                     
                     <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2 border border-yellow-200 mb-6">
                         <Info size={20} className="shrink-0"/>
-                        <p><strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/></p>
+                        <p>
+                            <strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/>
+                        </p>
                     </div>
 
                     <Card className="h-80">
                         <h3 className="text-lg font-bold text-slate-700 mb-4">Comparativo de Patrimônio Líquido Final</h3>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={results.comparativoHibrido.filter(c => c.type === 'compra')} layout="vertical" margin={{ left: 20, right: 30 }}>
+                            <BarChart data={results.comparativoHibrido.filter(c => c.type === 'compra')} layout="vertical" margin={{ left: 20, right: 110 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                 <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} />
                                 <YAxis dataKey="nome" type="category" width={140} tick={{fontSize: 11}} />
@@ -1000,27 +1201,123 @@
                                     {results.comparativoHibrido.filter(c => c.type === 'compra').map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.active ? '#fbbf24' : '#3b82f6'} />
                                     ))}
+                                    <LabelList dataKey="valor" position="right" formatter={(val) => formatMoney(val)} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </Card>
 
+                    {/* NEW EXPLANATION CARD */}
                     <Card className="bg-slate-100 border border-slate-200 mt-6 no-print">
-                         <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3"><Info size={16}/> Metodologia do Cálculo</h3>
+                         <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
+                            <Info size={16}/> Metodologia do Cálculo
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
-                            <div><strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong><p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>{config.savingsLabel}</strong>.</p></div>
-                            <div><strong className="block text-slate-800 mb-1">2. Cenário de Aquisição</strong><p>A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p></div>
-                            <div><strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong><p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p></div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong>
+                                <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>{config.savingsLabel}</strong>.</p>
+                            </div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">2. Cenário de Aquisição</strong>
+                                <p>A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
+                            </div>
+                            <div>
+                                <strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong>
+                                <p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p>
+                            </div>
                         </div>
                     </Card>
                 </div>
             )};
 
+            const renderSensibilidade = () => (
+                <div className="section-break">
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Análise de Sensibilidade</h2>}
+                    <div className="bg-pink-50 border border-pink-200 p-4 rounded-xl mb-6 no-print">
+                        <h3 className="text-lg font-bold text-pink-900 mb-2 flex items-center gap-2"><Scale className="w-5 h-5"/> Aporte vs. Taxa</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <InputGroup label="Simular Aumento de Aporte" icon={Plus} value={inputs.sensAporteExtra} onChange={v => updateInput("sensAporteExtra", v)} />
+                            <InputGroup label="Simular Aumento na Taxa Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.sensTaxaExtra} onChange={v => updateInput("sensTaxaExtra", v)} />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <Card className="border-t-4 border-gray-400">
+                            <div className="text-sm text-gray-500 font-semibold uppercase">Cenário Atual</div>
+                            <div className="text-2xl font-bold text-gray-800 mt-2">{formatTempo(results.tempoLiberdadeBase)}</div>
+                            <div className="text-xs text-gray-500 mt-1">Para atingir liberdade</div>
+                        </Card>
+                        <Card className="border-t-4 border-pink-500 relative">
+                            <div className="absolute top-2 right-2 bg-pink-100 text-pink-800 text-xs px-2 py-1 rounded">+ {formatMoney(parseInt(inputs.sensAporteExtra)/100)}/mês</div>
+                            <div className="text-sm text-gray-500 font-semibold uppercase">Com Aporte Extra</div>
+                            <div className="text-2xl font-bold text-pink-700 mt-2">{formatTempo(results.tempoLiberdadeAporte)}</div>
+                            <div className="text-xs text-green-600 font-bold mt-1">{calcEconomiaTempo(results.tempoLiberdadeBase, results.tempoLiberdadeAporte)}</div>
+                        </Card>
+                        <Card className="border-t-4 border-purple-500 relative">
+                            <div className="absolute top-2 right-2 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">+ {inputs.sensTaxaExtra}% a.a.</div>
+                            <div className="text-sm text-gray-500 font-semibold uppercase">Com Taxa Maior</div>
+                            <div className="text-2xl font-bold text-purple-700 mt-2">{formatTempo(results.tempoLiberdadeTaxa)}</div>
+                            <div className="text-xs text-green-600 font-bold mt-1">{calcEconomiaTempo(results.tempoLiberdadeBase, results.tempoLiberdadeTaxa)}</div>
+                        </Card>
+                    </div>
+                </div>
+            );
+
+            const renderInflacao = () => (
+                <div className="section-break">
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Raio-X da Inflação</h2>}
+                    <Card>
+                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2 no-print"><Banknote className="w-5 h-5"/> Raio-X da Inflação</h3>
+                        <p className="text-sm text-slate-600 mb-6">Considerando uma inflação média de <strong>{inputs.inflacao}% ao ano</strong>, veja de quanto dinheiro você precisará no futuro para manter o mesmo padrão de vida que <strong>{formatMoney(parseInt(inputs.saque)/100)}</strong> compram hoje.</p>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={results.inflacaoData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="ano" tickFormatter={(val) => `Daqui ${val} anos`} tick={{fontSize: 12}} />
+                                    <YAxis tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} tick={{fontSize: 12}} />
+                                    <Tooltip formatter={(value) => formatMoney(value)} labelFormatter={(label) => `Daqui a ${label} anos`} />
+                                    <Bar dataKey="custo" name="Custo de Vida Nominal" fill="#64748b" radius={[4, 4, 0, 0]} label={{ position: 'top', formatter: (v) => formatMoney(v), fontSize: 10, fill: '#64748b' }} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
+            );
+
+            const renderRisco = () => (
+                <div className="section-break">
+                    {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Análise de Risco</h2>}
+                    <div className="grid grid-cols-1 gap-6">
+                        <Card className="border-l-4 border-l-purple-500">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Activity className="text-purple-600" /> Risco de Ruína (Monte Carlo)</h3>
+                                    <p className="text-sm text-gray-600 mt-1">Probabilidade do dinheiro acabar considerando a volatilidade do mercado.</p>
+                                </div>
+                                <div className="text-right"><span className={`text-4xl font-bold ${results.riscoRuina < 5 ? 'text-emerald-600' : 'text-red-600'}`}>{results.riscoRuina.toFixed(1)}%</span></div>
+                            </div>
+                        </Card>
+                        <Card className={`border-l-4 ${results.sobreviveuCrise ? 'border-l-blue-500' : 'border-l-red-500'}`}>
+                            <div className="flex items-start gap-4">
+                                <div className={`p-3 rounded-full ${results.sobreviveuCrise ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>{results.sobreviveuCrise ? <ShieldCheck size={24} /> : <Zap size={24} />}</div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">Simulação de Crise Severa (-30%)</h3>
+                                    <p className="text-sm text-gray-600 mt-1">Teste de estresse simulando uma queda de 30% na bolsa no dia exato da sua aposentadoria.</p>
+                                    <div className={`mt-4 p-4 rounded-lg border ${results.sobreviveuCrise ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+                                        <p className={`font-semibold ${results.sobreviveuCrise ? 'text-blue-800' : 'text-red-800'}`}>{results.sobreviveuCrise ? "✅ O plano sobrevive." : "❌ O dinheiro acaba antes do fim."}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
+            );
+
             return (
                 <div className="min-h-screen pb-10">
+                    
+                    {/* PRINT MODAL */}
                     <Modal isOpen={showPrintModal} onClose={() => setShowPrintModal(false)} title="Gerar Relatório PDF">
-                        {/* ... Modal content ... */}
-                         <div className="space-y-4">
+                        <div className="space-y-4">
                             <button onClick={() => handlePrint('current')} className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 transition-colors group">
                                 <span className="font-semibold text-gray-700 group-hover:text-emerald-700">Apenas Aba Atual</span>
                                 <Printer size={20} className="text-gray-400 group-hover:text-emerald-600"/>
@@ -1053,66 +1350,187 @@
                     <div className="bg-emerald-600 text-white py-8 shadow-lg no-print">
                         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
                             <div>
-                                <h1 className="text-3xl font-bold flex items-center gap-3"><Calculator className="h-8 w-8" /> Simulador de Independência Financeira</h1>
+                                <h1 className="text-3xl font-bold flex items-center gap-3">
+                                    <Calculator className="h-8 w-8" />
+                                    Simulador de Independência Financeira
+                                </h1>
                                 <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
                             </div>
-                            <button onClick={openPrintModal} className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium" title="Imprimir / Salvar PDF"><Printer size={20} /> <span className="hidden sm:inline">Salvar PDF</span></button>
+                            <button 
+                                onClick={openPrintModal}
+                                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                                title="Imprimir / Salvar PDF"
+                            >
+                                <Printer size={20} />
+                                <span className="hidden sm:inline">Salvar PDF</span>
+                            </button>
                         </div>
                     </div>
 
                     <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        
                         <PrintHeader title={isPrinting ? (printSections.length > 1 ? "Relatório Personalizado" : "Visualização Detalhada") : "Painel de Controle"} />
 
                         {/* LEFT COLUMN - Ocultar na impressão */}
                         <div className="lg:col-span-4 space-y-6 no-print">
-                            {/* ... Input Cards ... */}
-                             <Card>
-                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700"><TrendingUp className="h-5 w-5" /> Fase de Acumulação</h2>
+                            
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
+                                    <TrendingUp className="h-5 w-5" />
+                                    Fase de Acumulação
+                                </h2>
                                 <InputGroup label="Investimentos Líquidos" icon={DollarSign} value={inputs.patrimonio} onChange={v => updateInput("patrimonio", v)} helpText="Dinheiro disponível hoje em corretoras/bancos." />
+                                
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Aporte Mensal</label>
                                     <div className="space-y-3">
                                         <div className="flex bg-gray-100 rounded-lg p-1">
                                             {['ipca', 'fixo', 'variavel'].map((type) => (
-                                                <button key={type} onClick={() => updateInput('aporteTipo', type)} className={`flex-1 text-xs font-medium py-1.5 rounded transition-all ${inputs.aporteTipo === type ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{type === 'ipca' ? 'Real (IPCA+)' : type === 'fixo' ? 'Fixo' : 'Variável'}</button>
+                                                <button
+                                                    key={type}
+                                                    onClick={() => updateInput('aporteTipo', type)}
+                                                    className={`flex-1 text-xs font-medium py-1.5 rounded transition-all ${inputs.aporteTipo === type ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                                >
+                                                    {type === 'ipca' ? 'Real (IPCA+)' : type === 'fixo' ? 'Fixo' : 'Variável'}
+                                                </button>
                                             ))}
                                         </div>
+                                        
                                         {inputs.aporteTipo !== 'variavel' ? (
                                             <div>
                                                 <InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} />
-                                                {inputs.aporteTipo === 'fixo' && (<p className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">⚠ O valor será fixo nominalmente, perdendo poder de compra.</p>)}
+                                                {inputs.aporteTipo === 'fixo' && (
+                                                    <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
+                                                        ⚠ O valor de {formatMoney(parseInt(inputs.aporte)/100)} será fixo nominalmente, perdendo poder de compra todo ano.
+                                                    </p>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <div className="mb-2"><label className="text-xs font-bold text-slate-600 block mb-1">Aporte Inicial (Ano 0-1)</label><InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} /></div>
+                                                <div className="mb-2">
+                                                    <label className="text-xs font-bold text-slate-600 block mb-1">Aporte Inicial (Ano 0-1)</label>
+                                                    <InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} />
+                                                </div>
+                                                
                                                 <div className="space-y-2 mb-3 max-h-32 overflow-y-auto scrollbar-thin">
                                                     {inputs.fasesAporte.length === 0 && <p className="text-xs text-slate-400 italic">Nenhuma fase adicionada. Usará o aporte inicial.</p>}
                                                     {inputs.fasesAporte.map((fase) => (
-                                                        <div key={fase.id} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm"><span>Ano {fase.ano}: <strong>{formatMoney(parseInt(fase.valor)/100)}</strong></span><button onClick={() => removerFase(fase.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>
+                                                        <div key={fase.id} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm">
+                                                            <span>Ano {fase.ano}: <strong>{formatMoney(parseInt(fase.valor)/100)}</strong></span>
+                                                            <button onClick={() => removerFase(fase.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                        </div>
                                                     ))}
                                                 </div>
+                                                
                                                 <div className="flex gap-2 items-end">
-                                                    <div className="w-16"><label className="text-[10px] text-slate-500 block mb-1">Ano</label><input type="number" className="w-full text-sm border-gray-300 rounded p-1.5 border" placeholder="Ex: 5" value={novaFase.ano} onChange={e => setNovaFase({...novaFase, ano: e.target.value})} /></div>
-                                                    <div className="flex-1"><label className="text-[10px] text-slate-500 block mb-1">Novo Aporte</label><InputGroup compact value={novaFase.valor} onChange={v => setNovaFase({...novaFase, valor: v})} /></div>
+                                                    <div className="w-16">
+                                                        <label className="text-[10px] text-slate-500 block mb-1">Ano</label>
+                                                        <input type="number" className="w-full text-sm border-gray-300 rounded p-1.5 border" placeholder="Ex: 5" value={novaFase.ano} onChange={e => setNovaFase({...novaFase, ano: e.target.value})} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                         <label className="text-[10px] text-slate-500 block mb-1">Novo Aporte</label>
+                                                        <InputGroup compact value={novaFase.valor} onChange={v => setNovaFase({...novaFase, valor: v})} />
+                                                    </div>
                                                     <button onClick={adicionarFase} className="bg-emerald-600 text-white p-2 rounded-lg mb-[2px]"><Plus size={16}/></button>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 </div>
+
                                 <InputGroup label="Anos Acumulando" icon={Calendar} type="number" suffix="anos" value={inputs.anosAcumulacao} onChange={v => updateInput("anosAcumulacao", v)} />
                             </Card>
-                            {/* ... Other input cards ... */}
-                            <Card><h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700"><Coins className="h-5 w-5" /> Aportes Extras & Variáveis</h2><div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">{inputs.aportesExtras.map(aporte => (<div key={aporte.id} className="flex justify-between items-center bg-indigo-50 p-2 rounded text-sm"><div><div className="font-semibold text-indigo-900">{aporte.nome || "Sem nome"}</div><div className="text-xs text-indigo-700">{aporte.tipo === 'recorrente' ? 'Todo ano (Acumulação)' : `No Ano ${aporte.ano}`} • {formatMoney(parseInt(aporte.valor)/100)}</div></div><button onClick={() => removerAporteExtra(aporte.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16} /></button></div>))}</div><div className="border-t border-gray-100 pt-3"><div className="grid grid-cols-2 gap-2 mb-2"><input placeholder="Nome" className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.nome} onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})} /><select className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.tipo} onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}><option value="recorrente">Recorrente (Anual)</option><option value="unico">Pontual (Único)</option></select></div><div className="grid grid-cols-2 gap-2 mb-2"><InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />{novoAporte.tipo === 'unico' && <input type="number" placeholder="Ano" className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" value={novoAporte.ano} onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})} />}</div><button onClick={adicionarAporteExtra} className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"><Plus size={16} /> Adicionar</button></div></Card>
-                            <Card><h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-700"><Home className="h-5 w-5" /> Outros Ativos</h2><InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} helpText="Rende separado e só soma ao saldo na aposentadoria." /><InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} helpText="Compõe patrimônio, mas não gera renda nem paga contas." /></Card>
-                            <Card><h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600"><TrendingDown className="h-5 w-5" /> Fase de Usufruto</h2><InputGroup label="Saque Mensal Desejado" icon={DollarSign} value={inputs.saque} onChange={v => updateInput("saque", v)} /><InputGroup label="Duração da Aposentadoria" icon={Calendar} type="number" suffix="anos" value={inputs.anosUsufruto} onChange={v => updateInput("anosUsufruto", v)} /></Card>
-                            <Card><h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700"><ShieldCheck className="h-5 w-5" /> Premissas</h2><div className="grid grid-cols-2 gap-4"><InputGroup label="Retorno Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.retornoAno} onChange={v => updateInput("retornoAno", v)} /><InputGroup label="Margem Seg." icon={ShieldCheck} type="number" suffix="%" value={inputs.margemSeguranca} onChange={v => updateInput("margemSeguranca", v)} /></div><div className="mt-4 p-3 bg-slate-100 rounded-lg"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={inputs.considerarInflacao} onChange={(e) => updateInput('considerarInflacao', e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5" /><span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span></label>{inputs.considerarInflacao ? (<div className="mt-3 animate-fade-in"><InputGroup label="Inflação Estimada" icon={TrendingDown} type="number" suffix="%" value={inputs.inflacao} onChange={v => updateInput("inflacao", v)} /><p className="text-xs text-slate-500 mt-1">Cálculo usando Taxa Nominal - Inflação.</p></div>) : (<div className="mt-2 text-xs text-slate-500 space-y-1"><p className="font-semibold text-slate-700">💡 Modo Juros Reais (Padrão)</p><p>Ao deixar desmarcado, o simulador mantém o <strong>Poder de Compra</strong>.</p></div>)}</div></Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700">
+                                    <Coins className="h-5 w-5" />
+                                    Aportes Extras & Variáveis
+                                </h2>
+                                <div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">
+                                    {inputs.aportesExtras.length === 0 && <p className="text-sm text-center text-gray-400 py-2 italic">Nenhum aporte extra adicionado.</p>}
+                                    {inputs.aportesExtras.map(aporte => (
+                                        <div key={aporte.id} className="flex justify-between items-center bg-indigo-50 p-2 rounded text-sm">
+                                            <div>
+                                                <div className="font-semibold text-indigo-900">{aporte.nome || "Sem nome"}</div>
+                                                <div className="text-xs text-indigo-700">
+                                                    {aporte.tipo === 'recorrente' ? 'Todo ano (Acumulação)' : `No Ano ${aporte.ano}`} • {formatMoney(parseInt(aporte.valor)/100)}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => removerAporteExtra(aporte.id)} className="text-red-400 hover:text-red-600 p-1">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="border-t border-gray-100 pt-3">
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <input placeholder="Nome" className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.nome} onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})} />
+                                        <select className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.tipo} onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}>
+                                            <option value="recorrente">Recorrente (Anual)</option>
+                                            <option value="unico">Pontual (Único)</option>
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />
+                                        {novoAporte.tipo === 'unico' && <input type="number" placeholder="Ano" className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" value={novoAporte.ano} onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})} />}
+                                    </div>
+                                    <button onClick={adicionarAporteExtra} className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"><Plus size={16} /> Adicionar</button>
+                                </div>
+                            </Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-700">
+                                    <Home className="h-5 w-5" />
+                                    Outros Ativos
+                                </h2>
+                                <InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} helpText="Rende separado e só soma ao saldo na aposentadoria." />
+                                <InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} helpText="Compõe patrimônio, mas não gera renda nem paga contas." />
+                            </Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600">
+                                    <TrendingDown className="h-5 w-5" />
+                                    Fase de Usufruto
+                                </h2>
+                                <InputGroup label="Saque Mensal Desejado" icon={DollarSign} value={inputs.saque} onChange={v => updateInput("saque", v)} />
+                                <InputGroup label="Duração da Aposentadoria" icon={Calendar} type="number" suffix="anos" value={inputs.anosUsufruto} onChange={v => updateInput("anosUsufruto", v)} />
+                            </Card>
+
+                            <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
+                                    <ShieldCheck className="h-5 w-5" />
+                                    Premissas
+                                </h2>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <InputGroup label="Retorno Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.retornoAno} onChange={v => updateInput("retornoAno", v)} />
+                                    <InputGroup label="Margem Seg." icon={ShieldCheck} type="number" suffix="%" value={inputs.margemSeguranca} onChange={v => updateInput("margemSeguranca", v)} />
+                                </div>
+                                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={inputs.considerarInflacao} onChange={(e) => updateInput('considerarInflacao', e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5" />
+                                        <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
+                                    </label>
+                                    {inputs.considerarInflacao ? (
+                                        <div className="mt-3 animate-fade-in">
+                                            <InputGroup label="Inflação Estimada" icon={TrendingDown} type="number" suffix="%" value={inputs.inflacao} onChange={v => updateInput("inflacao", v)} />
+                                            <p className="text-xs text-slate-500 mt-1">Cálculo usando Taxa Nominal - Inflação.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2 text-xs text-slate-500 space-y-1">
+                                            <p className="font-semibold text-slate-700">💡 Modo Juros Reais (Padrão)</p>
+                                            <p>Ao deixar desmarcado, o simulador mantém o <strong>Poder de Compra</strong>.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
                         </div>
-                        
+
                         {/* RIGHT COLUMN */}
                         <div className="lg:col-span-8 print:col-span-12 print:w-full space-y-6">
+
                             <PrintSummary inputs={inputs} formatMoney={formatMoney} />
 
+                            {/* TAB NAV */}
                             <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto pb-1 no-print">
                                 <button onClick={() => setActiveTab('simulacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Simulação Padrão</button>
                                 <button onClick={() => setActiveTab('marcos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'marcos' ? 'border-b-2 border-amber-500 text-amber-700' : 'text-gray-500 hover:text-gray-700'}`}><Flag size={16}/> Marcos</button>
@@ -1122,7 +1540,7 @@
                                 <button onClick={() => setActiveTab('risco')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}><Activity size={16}/> Risco</button>
                             </div>
                             
-                            {/* RENDERIZAÇÃO CONDICIONAL */}
+                            {/* RENDERIZAÇÃO CONDICIONAL OU RELATÓRIO COMPLETO */}
                             {isPrinting ? (
                                 <div className="space-y-8">
                                     {printSections.includes('simulacao') && renderSimulacao()}
@@ -1142,6 +1560,7 @@
                                     {activeTab === 'risco' && renderRisco()}
                                 </>
                             )}
+
                         </div>
                     </div>
                 </div>
