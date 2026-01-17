@@ -113,7 +113,7 @@
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell, LabelList } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store, Eye, EyeOff } from 'lucide-react';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store, Eye, EyeOff, Layers, Wallet } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -222,7 +222,7 @@
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.patrimonio || 0) / 100)}</span>
                     </div>
                     <div>
-                        <span className="block text-slate-400 text-xs">Aporte Mensal</span>
+                        <span className="block text-slate-400 text-xs">Aporte Mensal (Inicial)</span>
                         <span className="font-semibold text-slate-800">{formatMoney(parseInt(inputs.aporte || 0) / 100)}</span>
                     </div>
                     <div>
@@ -246,8 +246,8 @@
                         <span className="font-semibold text-slate-800">{inputs.inflacao}% a.a.</span>
                     </div>
                     <div>
-                        <span className="block text-slate-400 text-xs">Outros Ativos</span>
-                        <span className="font-semibold text-slate-800">{formatMoney((parseInt(inputs.patrimonioRestrito || 0) + parseInt(inputs.patrimonioImobilizado || 0)) / 100)}</span>
+                        <span className="block text-slate-400 text-xs">Outros Ativos (FGTS+Prev+Bens)</span>
+                        <span className="font-semibold text-slate-800">{formatMoney((parseInt(inputs.saldoFGTS || 0) + parseInt(inputs.saldoPrevidencia || 0) + parseInt(inputs.patrimonioImobilizado || 0)) / 100)}</span>
                     </div>
                 </div>
             </div>
@@ -273,7 +273,9 @@
                 
                 // Ativos
                 patrimonioImobilizado: "0", 
-                patrimonioRestrito: "0",
+                // patrimonioRestrito: "0", // LEGACY - Migrated to FGTS/Prev
+                saldoFGTS: "0",
+                saldoPrevidencia: "0",
                 
                 // Aportes Extras
                 aportesExtras: [], 
@@ -281,34 +283,35 @@
                 // Projetos
                 projetoTipo: "imovel", 
                 projetoValor: "50000000",
-                projetoAno: 0, // Default 0 = Agora
+                projetoAno: 0, 
                 projetoEntrada: "10000000",
                 projetoTaxaFin: 10,
-                projetoTipoTaxa: "nominal", // 'nominal' (Pré/TR) ou 'ipca' (IPCA+)
+                projetoTipoTaxa: "nominal",
                 projetoPrazo: 30,
                 projetoAluguelAtual: "0", 
+                usarFGTSProjeto: false, // NOVO: Checkbox FGTS
 
                 // Sensibilidade
                 sensAporteExtra: "50000", 
                 sensTaxaExtra: 1.0,
 
                 // Estrategia Amortizacao
-                estrategiaAmortizacao: 50 // 0 a 100%
+                estrategiaAmortizacao: 50 
             });
+
+            // State local para nova fase de aporte
+            const [novaFase, setNovaFase] = useState({ ano: "", valor: "" });
 
             const [novoAporte, setNovoAporte] = useState({ nome: "", tipo: "recorrente", valor: "", ano: "" });
             const [activeTab, setActiveTab] = useState('simulacao'); 
             const [milestoneMode, setMilestoneMode] = useState('padrao'); 
-            const [showDetails, setShowDetails] = useState(false); // Toggle Tabela
-            const [tableMode, setTableMode] = useState('real'); // 'real' or 'nominal'
+            const [showDetails, setShowDetails] = useState(false); 
+            const [tableMode, setTableMode] = useState('real'); 
             
             // Print States
             const [showPrintModal, setShowPrintModal] = useState(false);
             const [isPrinting, setIsPrinting] = useState(false);
-            const [printSections, setPrintSections] = useState([]); // Lista de abas a imprimir
-
-            // Local state for phase adding
-            const [novaFase, setNovaFase] = useState({ ano: "", valor: "" });
+            const [printSections, setPrintSections] = useState([]);
 
             const sectionsConfig = [
                 { id: 'simulacao', label: 'Simulação Padrão' },
@@ -319,95 +322,36 @@
                 { id: 'risco', label: 'Análise de Risco' }
             ];
 
-            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); // Default all
+            const [selectedForPrint, setSelectedForPrint] = useState(sectionsConfig.map(s => s.id)); 
 
-            // Project Type Configs - Expanded
+            // Project Type Configs
             const projectTypes = {
-                imovel: { 
-                    title: "Simular Aquisição de Imóvel",
-                    label: "Valor do Imóvel", 
-                    icon: Home, 
-                    showFinancing: true,
-                    showSavings: true, // Corrigido de hasSavings para showSavings para consistência
-                    savingsLabel: "Aluguel Atual", 
-                    savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", 
-                    entryLabel: "Entrada Disponível",
-                    rateLabel: "Taxa do Contrato",
-                    termLabel: "Prazo (Anos)"
-                },
-                carro: { 
-                    title: "Simular Aquisição de Veículo",
-                    label: "Preço do Veículo", 
-                    icon: Car, 
-                    showFinancing: true,
-                    showSavings: true,
-                    savingsLabel: "Gasto Transporte", 
-                    savingsHelp: "Gasto com Uber/Taxi que será economizado.", 
-                    entryLabel: "Entrada / Veículo Atual",
-                    rateLabel: "Taxa Financiamento",
-                    termLabel: "Prazo (Anos)"
-                },
-                viagem: { 
-                    title: "Planejamento de Viagem",
-                    label: "Custo Total da Viagem", 
-                    icon: Plane, 
-                    showFinancing: true,
-                    showSavings: false, // Viagem geralmente é gasto, não investimento/troca
-                    savingsLabel: "Custo Recorrente", 
-                    savingsHelp: "", 
-                    entryLabel: "Dinheiro Guardado",
-                    rateLabel: "Juros Parcelamento",
-                    termLabel: "Prazo Pagamento (Anos)"
-                },
-                educacao: { 
-                    title: "Planejamento Educacional",
-                    label: "Custo Total do Curso", 
-                    icon: GraduationCap, 
-                    showFinancing: true,
-                    showSavings: false,
-                    savingsLabel: "Mensalidade Atual", 
-                    savingsHelp: "", 
-                    entryLabel: "Valor Disponível",
-                    rateLabel: "Juros Financiamento",
-                    termLabel: "Prazo (Anos)"
-                },
-                negocio: { 
-                    title: "Investimento em Negócio",
-                    label: "Investimento Inicial", 
-                    icon: Store, 
-                    showFinancing: true,
-                    showSavings: true,
-                    savingsLabel: "Lucro Estimado/Mês", 
-                    savingsHelp: "Retorno mensal líquido esperado do negócio.", 
-                    entryLabel: "Capital Próprio",
-                    rateLabel: "Taxa Empréstimo PJ",
-                    termLabel: "Prazo Pagamento (Anos)"
-                },
-                outro: { 
-                    title: "Outro Projeto",
-                    label: "Valor do Projeto", 
-                    icon: Target, 
-                    showFinancing: true,
-                    showSavings: true,
-                    savingsLabel: "Economia Gerada", 
-                    savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", 
-                    entryLabel: "Valor Disponível",
-                    rateLabel: "Taxa de Juros",
-                    termLabel: "Prazo (Anos)"
-                },
+                imovel: { title: "Simular Aquisição de Imóvel", label: "Valor do Imóvel", icon: Home, showFinancing: true, showSavings: true, savingsLabel: "Aluguel Atual", savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", entryLabel: "Entrada (Recursos Próprios)", rateLabel: "Taxa do Contrato", termLabel: "Prazo (Anos)", showFGTSOption: true },
+                carro: { title: "Simular Aquisição de Veículo", label: "Preço do Veículo", icon: Car, showFinancing: true, showSavings: true, savingsLabel: "Gasto Transporte", savingsHelp: "Gasto com Uber/Taxi que será economizado.", entryLabel: "Entrada / Veículo Atual", rateLabel: "Taxa Financiamento", termLabel: "Prazo (Anos)", showFGTSOption: false },
+                viagem: { title: "Planejamento de Viagem", label: "Custo Total da Viagem", icon: Plane, showFinancing: true, showSavings: false, savingsLabel: "Custo Recorrente", savingsHelp: "", entryLabel: "Dinheiro Guardado", rateLabel: "Juros Parcelamento", termLabel: "Prazo Pagamento (Anos)", showFGTSOption: false },
+                educacao: { title: "Planejamento Educacional", label: "Custo Total do Curso", icon: GraduationCap, showFinancing: true, showSavings: false, savingsLabel: "Mensalidade", savingsHelp: "", entryLabel: "Valor Disponível", rateLabel: "Juros Financiamento", termLabel: "Prazo (Anos)", showFGTSOption: false },
+                negocio: { title: "Investimento em Negócio", label: "Investimento Inicial", icon: Store, showFinancing: true, showSavings: true, savingsLabel: "Lucro Estimado/Mês", savingsHelp: "Retorno mensal líquido esperado do negócio.", entryLabel: "Capital Próprio", rateLabel: "Taxa Empréstimo PJ", termLabel: "Prazo Pagamento (Anos)", showFGTSOption: false },
+                outro: { title: "Outro Projeto", label: "Valor do Projeto", icon: Target, showFinancing: true, showSavings: true, savingsLabel: "Economia Gerada", savingsHelp: "Valor mensal economizado ou gerado pelo projeto.", entryLabel: "Valor Disponível", rateLabel: "Taxa de Juros", termLabel: "Prazo (Anos)", showFGTSOption: false },
             };
 
             // --- LOAD & MIGRAÇÃO ---
             useEffect(() => {
-                let saved = localStorage.getItem('financial_plan_v12'); // Bump version
+                let saved = localStorage.getItem('financial_plan_v13'); // Bump version
                 
                 if (!saved) {
-                    saved = localStorage.getItem('financial_plan_v11') || localStorage.getItem('financial_plan_v10') || localStorage.getItem('financial_plan_v9');
+                    saved = localStorage.getItem('financial_plan_v12') || localStorage.getItem('financial_plan_v11') || localStorage.getItem('financial_plan_v10');
                 }
 
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
+                        // Migration Logic
+                        if (parsed.patrimonioRestrito && (!parsed.saldoFGTS || parsed.saldoFGTS === "0") && (!parsed.saldoPrevidencia || parsed.saldoPrevidencia === "0")) {
+                            // Se tinha valor antigo e novos estão zerados, move para Previdência (conservador)
+                            parsed.saldoPrevidencia = parsed.patrimonioRestrito;
+                            parsed.saldoFGTS = "0";
+                        }
+                        
                         if (!parsed.aportesExtras) parsed.aportesExtras = [];
                         if (parsed.estrategiaAmortizacao === undefined) parsed.estrategiaAmortizacao = 50; 
                         if (parsed.projetoAno === undefined) parsed.projetoAno = 0;
@@ -415,13 +359,15 @@
                         if (parsed.projetoTipo === undefined) parsed.projetoTipo = "imovel"; 
                         if (parsed.aporteTipo === undefined) parsed.aporteTipo = "ipca";
                         if (parsed.fasesAporte === undefined) parsed.fasesAporte = [];
+                        if (parsed.usarFGTSProjeto === undefined) parsed.usarFGTSProjeto = false;
+                        
                         setInputs(prev => ({ ...prev, ...parsed }));
                     } catch (e) { console.error("Erro ao carregar", e); }
                 }
             }, []);
 
             useEffect(() => {
-                localStorage.setItem('financial_plan_v12', JSON.stringify(inputs));
+                localStorage.setItem('financial_plan_v13', JSON.stringify(inputs));
             }, [inputs]);
 
             const updateInput = (field, value) => {
@@ -450,28 +396,16 @@
                 setInputs(prev => ({ ...prev, fasesAporte: prev.fasesAporte.filter(f => f.id !== id) }));
             };
 
-            // --- PRINT LOGIC ---
             const openPrintModal = () => setShowPrintModal(true);
-            
             const handlePrint = (mode) => {
                 setShowPrintModal(false);
                 let sectionsToPrint = [];
-                if (mode === 'current') {
-                    sectionsToPrint = [activeTab];
-                } else if (mode === 'all') {
-                    sectionsToPrint = sectionsConfig.map(s => s.id);
-                } else if (mode === 'custom') {
-                    sectionsToPrint = selectedForPrint;
-                }
-
+                if (mode === 'current') sectionsToPrint = [activeTab];
+                else if (mode === 'all') sectionsToPrint = sectionsConfig.map(s => s.id);
+                else if (mode === 'custom') sectionsToPrint = selectedForPrint;
                 setPrintSections(sectionsToPrint);
                 setIsPrinting(true);
-
-                // Wait for render update then print
-                setTimeout(() => {
-                    window.print();
-                    setIsPrinting(false);
-                }, 100);
+                setTimeout(() => { window.print(); setIsPrinting(false); }, 100);
             };
 
             const togglePrintSelection = (id) => {
@@ -493,7 +427,10 @@
                 const aporteMensal = parseInt(inputs.aporte || "0") / 100;
                 const saqueMensal = parseInt(inputs.saque || "0") / 100;
                 const imobilizado = parseInt(inputs.patrimonioImobilizado || "0") / 100;
-                const restrito = parseInt(inputs.patrimonioRestrito || "0") / 100;
+                const saldoFGTSInitial = parseInt(inputs.saldoFGTS || "0") / 100;
+                const saldoPrevidenciaInitial = parseInt(inputs.saldoPrevidencia || "0") / 100;
+                const restrito = saldoFGTSInitial + saldoPrevidenciaInitial;
+
                 const taxaRetorno = parseFloat(inputs.retornoAno) / 100;
                 const taxaInflacao = parseFloat(inputs.inflacao) / 100;
                 
@@ -505,7 +442,6 @@
                     taxaMensalInv = Math.pow(1 + taxaRetorno, 1/12) - 1;
                 }
                 
-                // Taxa Mensal da Inflação (para deflacionar parcelas nominais)
                 const taxaInflacaoMensal = Math.pow(1 + taxaInflacao, 1/12) - 1;
 
                 const mesesAcumulacao = inputs.anosAcumulacao * 12;
@@ -531,7 +467,7 @@
                 };
 
                 const runSimulation = (params = {}) => {
-                    const { pInicial = patrimonioLiq, apMensal = aporteMensal, txMensal = taxaMensalInv, extraCostFn = () => 0, extraWithdrawFn = () => 0, extraIncomeFn = () => 0 } = params;
+                    const { pInicial = patrimonioLiq, apMensal = aporteMensal, txMensal = taxaMensalInv, extraCostFn = () => 0, extraWithdrawFn = () => 0, extraIncomeFn = () => 0, restrictedWithdrawFn = () => 0 } = params;
                     let saldoLiq = pInicial;
                     let saldoRest = restrito;
                     let mesFim = null;
@@ -545,7 +481,15 @@
                         const ano = Math.ceil(m / 12);
                         
                         saldoLiq = saldoLiq * (1 + txMensal);
-                        if (isAcc) saldoRest = saldoRest * (1 + txMensal);
+                        if (isAcc) {
+                             saldoRest = saldoRest * (1 + txMensal);
+                             // Handle Restricted Withdrawal (e.g. FGTS) during accumulation
+                             const rWithdraw = restrictedWithdrawFn(m);
+                             if (rWithdraw > 0) {
+                                 saldoRest -= rWithdraw;
+                                 if(saldoRest < 0) saldoRest = 0;
+                             }
+                        }
 
                         let movimentoMes = 0;
 
@@ -637,6 +581,8 @@
                 const simSensTaxa = runSimulation({ txMensal: novaTaxaMensal });
                 const inflacaoData = [];
                 for(let y=0; y<=30; y+=5) { const fator = Math.pow(1 + taxaInflacao, y); inflacaoData.push({ ano: y, custo: Math.round(saqueMensal * fator), perdaPoder: Math.round(100 - (100/fator)) }); }
+                
+                // Projects Logic
                 const config = projectTypes[inputs.projetoTipo] || projectTypes.imovel;
                 const projValor = parseInt(inputs.projetoValor || "0") / 100;
                 const projEntrada = parseInt(inputs.projetoEntrada || "0") / 100;
@@ -648,7 +594,13 @@
                 else { taxaFinAnualReal = ((1 + taxaFinAnualInput) / (1 + taxaInflacao)) - 1; taxaFinMensalNominal = Math.pow(1 + taxaFinAnualInput, 1/12) - 1; }
                 const taxaFinMensalReal_Calc = Math.pow(1 + taxaFinAnualReal, 1/12) - 1;
                 const projPrazoMeses = inputs.projetoPrazo * 12;
-                const valorFinanciado = Math.max(0, projValor - projEntrada);
+                let valorEntradaFinal = projEntrada;
+                let fgtsProjectedValue = 0;
+                if (inputs.usarFGTSProjeto && config.showFGTSOption) {
+                    fgtsProjectedValue = saldoFGTSInitial * Math.pow(1 + taxaMensalInv, projMes);
+                    valorEntradaFinal += fgtsProjectedValue;
+                }
+                const valorFinanciado = Math.max(0, projValor - valorEntradaFinal);
                 const parcelaNominal = valorFinanciado > 0 && taxaFinMensalNominal > 0 ? valorFinanciado * (taxaFinMensalNominal * Math.pow(1 + taxaFinMensalNominal, projPrazoMeses)) / (Math.pow(1 + taxaFinMensalNominal, projPrazoMeses) - 1) : valorFinanciado / projPrazoMeses;
                 const capacidadeBase = aporteMensal + projEconomia;
                 
@@ -660,11 +612,25 @@
                     let saldoFinal = 0;
                     let dividaQuitadaEm = null;
                     let totalPagoDívida = 0; 
-                    if (scenarioType === 'financiamento') { saldoLiq -= projEntrada; divida = valorFinanciado; }
+                    
+                    if (scenarioType === 'financiamento') { 
+                        saldoLiq -= projEntrada; 
+                        divida = valorFinanciado; 
+                    }
+                    
+                    const restrictedWithdrawFn = (m) => {
+                        if (scenarioType === 'financiamento' && inputs.usarFGTSProjeto && m === projMes) return fgtsProjectedValue; 
+                        return 0;
+                    };
+
                     for (let m = 1; m <= totalMeses; m++) {
                         const isAcc = m <= mesesAcumulacao;
                         saldoLiq *= (1 + taxaMensalInv);
-                        if (isAcc) saldoRest *= (1 + taxaMensalInv);
+                        if (isAcc) {
+                             saldoRest *= (1 + taxaMensalInv);
+                             const rW = restrictedWithdrawFn(m);
+                             if (rW > 0) { saldoRest -= rW; if (saldoRest < 0) saldoRest = 0; }
+                        }
                         if (divida > 0) divida *= (1 + taxaFinMensalReal_Calc);
                         let disponivelParaAlocacao = 0;
                         if (isAcc) {
@@ -697,10 +663,9 @@
                     }
                     return { saldoFinal, mesFim, dividaQuitadaEm, totalPagoDívida };
                 };
-
+                
                 const excedenteMensal = capacidadeBase - parcelaNominal;
                 const temExcedente = excedenteMensal > 0;
-                const simAluguel = runHybridSimulation(0, 'aluguel');
                 const simHibrida = runHybridSimulation(inputs.estrategiaAmortizacao, 'financiamento');
                 const simInvestirTudo = runHybridSimulation(0, 'financiamento');
                 const simAmortizarTudo = runHybridSimulation(100, 'financiamento');
@@ -715,15 +680,23 @@
                 const reqHibrido = solveRequiredExtra('financiamento', inputs.estrategiaAmortizacao);
                 const reqInvestir = solveRequiredExtra('financiamento', 0);
                 const reqAmortizar = solveRequiredExtra('financiamento', 100);
+
                 const scores = [ { name: 'hibrido', val: simHibrida.mesFim ? -1 : simHibrida.saldoFinal }, { name: 'investir', val: simInvestirTudo.mesFim ? -1 : simInvestirTudo.saldoFinal }, { name: 'amortizar', val: simAmortizarTudo.mesFim ? -1 : simAmortizarTudo.saldoFinal } ];
                 scores.sort((a,b) => b.val - a.val);
                 const winner = scores[0];
+
                 let melhorEstrat = "";
                 if (winner.val < 0) melhorEstrat = "Inviável (Todos quebram)";
                 else if (winner.name === 'hibrido') melhorEstrat = `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`;
                 else if (winner.name === 'investir') melhorEstrat = "Investir 100% da Sobra";
                 else if (winner.name === 'amortizar') melhorEstrat = "Amortizar 100% da Sobra";
-                const comparativoHibrido = [ { nome: "Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' }, { nome: `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' }, { nome: "Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' } ];
+                
+                const comparativoHibrido = [
+                    { nome: "Investir 100% da Sobra", valor: simInvestirTudo.saldoFinal, quitacao: simInvestirTudo.dividaQuitadaEm, type: 'compra', mesFim: simInvestirTudo.mesFim, required: reqInvestir, totalPago: simInvestirTudo.totalPagoDívida, active: winner.name === 'investir' },
+                    { nome: `Híbrido: Amortizar ${inputs.estrategiaAmortizacao}%`, valor: simHibrida.saldoFinal, quitacao: simHibrida.dividaQuitadaEm, type: 'compra', active: true, mesFim: simHibrida.mesFim, required: reqHibrido, totalPago: simHibrida.totalPagoDívida, active: winner.name === 'hibrido' },
+                    { nome: "Amortizar 100% da Sobra", valor: simAmortizarTudo.saldoFinal, quitacao: simAmortizarTudo.dividaQuitadaEm, type: 'compra', mesFim: simAmortizarTudo.mesFim, required: reqAmortizar, totalPago: simAmortizarTudo.totalPagoDívida, active: winner.name === 'amortizar' }
+                ];
+                
                 const simAvista = runSimulation({ extraWithdrawFn: (m) => m === projMes ? projValor : 0, extraIncomeFn: (m) => m > projMes ? projEconomia : 0 });
                 const simFinanc = simHibrida;
                 const impactoAvista = projEconomia;
@@ -739,6 +712,7 @@
                 const insights = [];
                 if (simHibrida.mesFim) insights.push({ type: 'wait', text: "Realizar este projeto hoje apresenta risco. Considere aguardar 2-3 anos acumulando capital." });
                 const comparativoProj = comparativoHibrido;
+
                 let saldoCrise = saldoFinalAcumulacao * 0.7; 
                 let sobreviveuCrise = true;
                 for (let m = 1; m <= mesesUsufruto; m++) { saldoCrise = saldoCrise * (1 + taxaMensalInv) - saqueMensal; saldoCrise += getExtraInflow(mesesAcumulacao + m, false); if (saldoCrise < 0) { sobreviveuCrise = false; break; } }
@@ -759,15 +733,13 @@
                     }
                 }
 
-                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: config };
+                return { baseData: simBase.data, saldoFinalAcumulacao, montanteNecessario, sucesso: !simBase.mesFim && (simBase.saldoFinal > 0), durouTudo: simBase.mesFim === null, mesFimDinheiro: simBase.mesFim, saldoFinalTotal: simBase.saldoFinal, imobilizado, sobreviveuCrise, riscoRuina: (falhas / simulacoes) * 100, simAvista, simFinanc, comparativoProj, parcela: parcelaNominal, melhorEstrat, explicacaoProj, marcos: marcosList, simSensAporte, simSensTaxa, inflacaoData, tempoLiberdadeBase: simBase.atingiuLiberdadeEm, tempoLiberdadeAporte: simSensAporte.atingiuLiberdadeEm, tempoLiberdadeTaxa: simSensTaxa.atingiuLiberdadeEm, pieData, totalInvestido, totalJuros, comparativoHibrido, temExcedente, excedenteMensal, capacidadeBase, insights, projectConfigs: config, fgtsProjectedValue, valorEntradaFinal };
             }, [inputs, milestoneMode]); 
 
-            // Formatadores
             const formatTempo = (m) => { if (!m) return "Nunca"; const anos = Math.floor(m/12); const meses = m%12; if (anos === 0) return `${meses}m`; return `${anos}a ${meses}m`; };
             const calcEconomiaTempo = (base, novo) => { if (!base) return null; if (!novo) return "Não atinge"; const diff = base - novo; if (diff <= 0) return "Mesmo tempo"; return `${formatTempo(diff)} a menos`; };
             const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => { const RADIAN = Math.PI / 180; const radius = innerRadius + (outerRadius - innerRadius) * 0.5; const x = cx + radius * Math.cos(-midAngle * RADIAN); const y = cy + radius * Math.sin(-midAngle * RADIAN); return ( <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12}> {`${(percent * 100).toFixed(0)}%`} </text> ); };
 
-            // Render Functions for Tabs
             const renderSimulacao = () => (
                 <div className="section-break">
                     {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Simulação Padrão</h2>}
@@ -860,7 +832,7 @@
                             </div>
                         </div>
                     </Card>
-                    <div className="mt-6">
+                     <div className="mt-6">
                         <div className="flex justify-between items-center">
                             <button onClick={() => setShowDetails(!showDetails)} className="flex items-center gap-2 text-emerald-700 font-semibold hover:text-emerald-900 transition-colors">
                                 {showDetails ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -868,22 +840,11 @@
                             </button>
                             {showDetails && (
                                 <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                                    <button 
-                                        onClick={() => setTableMode('real')}
-                                        className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${tableMode === 'real' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        Valores Reais (Hoje)
-                                    </button>
-                                    <button 
-                                        onClick={() => setTableMode('nominal')}
-                                        className={`px-3 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1 ${tableMode === 'nominal' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        Nominais (Futuros) <Eye size={12}/>
-                                    </button>
+                                    <button onClick={() => setTableMode('real')} className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${tableMode === 'real' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Valores Reais (Hoje)</button>
+                                    <button onClick={() => setTableMode('nominal')} className={`px-3 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1 ${tableMode === 'nominal' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Nominais (Futuros) <Eye size={12}/></button>
                                 </div>
                             )}
                         </div>
-                        
                         {showDetails && (
                             <div className="mt-4 overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100 max-h-[500px] scrollbar-thin">
                                 <table className="w-full text-sm text-left text-gray-600">
@@ -891,34 +852,20 @@
                                         <tr>
                                             <th className="px-4 py-3">Ano</th>
                                             <th className="px-4 py-3">Fase</th>
-                                            <th className="px-4 py-3 text-right">
-                                                {tableMode === 'real' ? 'Fluxo Mensal Médio (Real)' : 'Fluxo Mensal Médio (Nominal)'}
-                                            </th>
-                                            <th className="px-4 py-3 text-right">
-                                                {tableMode === 'real' ? 'Saldo Acumulado (Real)' : 'Saldo Acumulado (Nominal)'}
-                                            </th>
+                                            <th className="px-4 py-3 text-right">{tableMode === 'real' ? 'Fluxo Mensal Médio (Real)' : 'Fluxo Mensal Médio (Nominal)'}</th>
+                                            <th className="px-4 py-3 text-right">{tableMode === 'real' ? 'Saldo Acumulado (Real)' : 'Saldo Acumulado (Nominal)'}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {results.baseData.map((row) => (
                                             <tr key={row.ano} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-4 py-3 font-medium">{row.ano}</td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${row.fase === 'Acumulação' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
-                                                        {row.fase}
-                                                    </span>
-                                                </td>
+                                                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${row.fase === 'Acumulação' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>{row.fase}</span></td>
                                                 <td className={`px-4 py-3 text-right font-mono font-medium ${row.fluxoMensalReal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                    {tableMode === 'real' 
-                                                        ? (row.fluxoMensalReal > 0 ? '+' : '') + formatMoney(row.fluxoMensalReal)
-                                                        : (row.fluxoMensalNominal > 0 ? '+' : '') + formatMoney(row.fluxoMensalNominal)
-                                                    }
+                                                    {tableMode === 'real' ? (row.fluxoMensalReal > 0 ? '+' : '') + formatMoney(row.fluxoMensalReal) : (row.fluxoMensalNominal > 0 ? '+' : '') + formatMoney(row.fluxoMensalNominal)}
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-bold text-gray-800 font-mono">
-                                                    {tableMode === 'real' 
-                                                        ? formatMoney(row.saldoTotal) 
-                                                        : formatMoney(row.saldoTotalNominal)
-                                                    }
+                                                    {tableMode === 'real' ? formatMoney(row.saldoTotal) : formatMoney(row.saldoTotalNominal)}
                                                 </td>
                                             </tr>
                                         ))}
@@ -930,6 +877,7 @@
                 </div>
             );
 
+            // ... (renderMarcos, renderSensibilidade, renderInflacao, renderRisco remain same) ...
             const renderMarcos = () => (
                 <div className="section-break">
                     {isPrinting && <h2 className="text-xl font-bold text-slate-800 mb-4 print-only">Marcos & Metas</h2>}
@@ -1009,11 +957,7 @@
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 no-print">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2"><Briefcase className="w-5 h-5"/> Simular Aquisição de Projeto</h3>
-                            <select 
-                                value={inputs.projetoTipo}
-                                onChange={(e) => updateInput("projetoTipo", e.target.value)}
-                                className="text-sm border-blue-200 bg-white text-blue-700 rounded-lg px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                            >
+                            <select value={inputs.projetoTipo} onChange={(e) => updateInput("projetoTipo", e.target.value)} className="text-sm border-blue-200 bg-white text-blue-700 rounded-lg px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500 cursor-pointer">
                                 <option value="imovel">Imóvel</option>
                                 <option value="carro">Veículo</option>
                                 <option value="viagem">Viagem</option>
@@ -1025,40 +969,44 @@
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <InputGroup label={`Valor do ${config.label}`} icon={config.icon} value={inputs.projetoValor} onChange={v => updateInput("projetoValor", v)} />
-                            <InputGroup label="Entrada Disponível" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
-                            
-                            {/* MOVIDO PARA CÁ: Aluguel Atual */}
+                            <InputGroup label="Entrada Disponível (Recursos Próprios)" icon={DollarSign} value={inputs.projetoEntrada} onChange={v => updateInput("projetoEntrada", v)} helpText="Use 100% se for À Vista" />
                             <InputGroup label={config.savingsLabel} icon={ArrowRightLeft} value={inputs.projetoAluguelAtual} onChange={v => updateInput("projetoAluguelAtual", v)} helpText={config.savingsHelp} hidden={!config.showSavings} highlight={true} />
-
                             <InputGroup label="Quando Iniciar? (Anos)" icon={Calendar} type="number" suffix="anos" value={inputs.projetoAno} onChange={v => updateInput("projetoAno", v)} helpText="0 = Imediato" />
-                            
-                            {/* Novo Selector de Tipo de Taxa */}
                             <div className={`mb-4 ${!config.showFinancing && 'hidden'}`}>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Taxa</label>
-                                <select 
-                                    className="block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border py-3 px-3 bg-white"
-                                    value={inputs.projetoTipoTaxa}
-                                    onChange={(e) => updateInput("projetoTipoTaxa", e.target.value)}
-                                >
+                                <select className="block w-full border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm border py-3 px-3 bg-white" value={inputs.projetoTipoTaxa} onChange={(e) => updateInput("projetoTipoTaxa", e.target.value)}>
                                     <option value="nominal">Nominal (Pré/TR)</option>
                                     <option value="ipca">Real (IPCA+)</option>
                                 </select>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    {inputs.projetoTipoTaxa === 'nominal' ? "A inflação 'corrói' o valor real da dívida." : "A dívida é corrigida pela inflação."}
-                                </p>
+                                <p className="text-xs text-slate-500 mt-1">{inputs.projetoTipoTaxa === 'nominal' ? "A inflação 'corrói' o valor real da dívida." : "A dívida é corrigida pela inflação."}</p>
                             </div>
-
                             <InputGroup label={config.rateLabel} icon={TrendingUp} type="number" suffix="% a.a" value={inputs.projetoTaxaFin} onChange={v => updateInput("projetoTaxaFin", v)} helpText={inputs.projetoTipoTaxa === 'nominal' ? "Taxa Total (Juros + TR)" : "Taxa de Juros Real (Spread)"} hidden={!config.showFinancing} />
-                            
                             <InputGroup label={config.termLabel} icon={Calendar} type="number" suffix="anos" value={inputs.projetoPrazo} onChange={v => updateInput("projetoPrazo", v)} hidden={!config.showFinancing} />
                         </div>
                         
-                         {/* NEW: Installment Display */}
+                         {config.showFGTSOption && (
+                            <div className="mt-2 mb-4 bg-white p-3 rounded-lg border border-blue-100 flex items-center justify-between">
+                                <div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={inputs.usarFGTSProjeto} onChange={(e) => updateInput('usarFGTSProjeto', e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" />
+                                        <span className="text-sm font-medium text-slate-700">Usar Saldo FGTS na Entrada?</span>
+                                    </label>
+                                    {inputs.usarFGTSProjeto && <p className="text-xs text-slate-500 ml-7 mt-1">O saldo atual projetado será abatido do financiamento.</p>}
+                                </div>
+                                {inputs.usarFGTSProjeto && (
+                                    <div className="text-right">
+                                        <span className="text-xs text-slate-500 block">FGTS Projetado</span>
+                                        <span className="font-bold text-blue-700">{formatMoney(results.fgtsProjectedValue)}</span>
+                                    </div>
+                                )}
+                            </div>
+                         )}
+
                          {config.showFinancing && (
                              <div className="mt-6 pt-4 border-t border-blue-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                                 <div className="text-sm text-blue-800">
                                     <span className="block text-xs opacity-75">Valor Financiado</span>
-                                    <strong>{formatMoney(Math.max(0, parseInt(inputs.projetoValor || "0") - parseInt(inputs.projetoEntrada || "0"))/100)}</strong>
+                                    <strong>{formatMoney(Math.max(0, parseInt(inputs.projetoValor || "0") - results.valorEntradaFinal)/100)}</strong>
                                 </div>
                                 <div className="text-sm text-blue-800 text-right sm:text-center">
                                     <span className="block text-xs opacity-75">Parcela Estimada (Mensal)</span>
@@ -1078,105 +1026,66 @@
                          )}
                     </div>
                     
-                    {/* NOVO: OTIMIZADOR DE ESTRATÉGIA E COMPARATIVO GLOBAL */}
                     <Card className="border-t-4 border-indigo-500 mb-6">
-                        <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                            <Sliders className="w-5 h-5"/> Estratégia de Pagamento: {config.label}
-                        </h3>
-                        
+                        <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2"><Sliders className="w-5 h-5"/> Estratégia de Pagamento: {config.label}</h3>
                         <div className="mb-4 bg-slate-50 p-4 rounded-lg">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal Total (Aporte + {config.savingsLabel}):</span>
+                                <span className="text-sm font-semibold text-gray-700">Capacidade Mensal (Aporte + {config.savingsLabel}):</span>
                                 <span className="text-lg font-bold text-emerald-700">{formatMoney(results.capacidadeBase)}</span>
                             </div>
-                            <p className="text-xs text-gray-500 mb-2">
-                                *O simulador usa essa capacidade para pagar a parcela. O excedente é alocado abaixo.
-                            </p>
+                            <p className="text-xs text-gray-500 mb-2">*O simulador usa essa capacidade para pagar a parcela. O excedente é alocado abaixo.</p>
                         </div>
-
                         {results.temExcedente ? (
                             <div className="mb-6">
-                                <p className="text-sm text-gray-600 mb-3">
-                                    Sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?
-                                </p>
+                                <p className="text-sm text-gray-600 mb-3">Sobra <strong>{formatMoney(results.excedenteMensal)}</strong> após pagar a parcela. Como alocar essa sobra?</p>
                                 <div className="bg-slate-50 p-4 rounded-lg">
                                     <div className="flex justify-between text-sm font-semibold mb-2">
                                         <span className="text-blue-600">Investir {100 - inputs.estrategiaAmortizacao}%</span>
                                         <span className="text-emerald-600">Amortizar {inputs.estrategiaAmortizacao}%</span>
                                     </div>
-                                    <input 
-                                        type="range" 
-                                        min="0" 
-                                        max="100" 
-                                        step="10"
-                                        value={inputs.estrategiaAmortizacao} 
-                                        onChange={(e) => updateInput("estrategiaAmortizacao", parseInt(e.target.value))}
-                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                    />
+                                    <input type="range" min="0" max="100" step="10" value={inputs.estrategiaAmortizacao} onChange={(e) => updateInput("estrategiaAmortizacao", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-4 bg-orange-50 text-orange-800 rounded-lg text-sm flex gap-2 mb-4">
-                                <AlertCircle size={20}/>
-                                <p>A parcela ({formatMoney(results.parcela)}) excede sua capacidade ({formatMoney(results.capacidadeBase)}). Você terá déficit.</p>
-                            </div>
+                            <div className="p-4 bg-orange-50 text-orange-800 rounded-lg text-sm flex gap-2 mb-4"><AlertCircle size={20}/><p>A parcela ({formatMoney(results.parcela)}) excede sua capacidade ({formatMoney(results.capacidadeBase)}). Você terá déficit.</p></div>
                         )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             {results.comparativoHibrido.filter(c => c.type === 'compra').map((cenario, idx) => (
                                 <div key={idx} className={`p-4 rounded-lg border flex flex-col justify-between relative pt-6 ${cenario.active ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white border-gray-200'}`}>
                                     {cenario.active && (
                                         <div className="absolute top-0 inset-x-0 flex justify-center -mt-3">
-                                            <div className="bg-amber-400 text-amber-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-amber-500">
-                                                <Star size={12} fill="currentColor" /> Melhor Opção
-                                            </div>
+                                            <div className="bg-amber-400 text-amber-900 text-[10px] font-bold px-3 py-1 rounded-full uppercase shadow-sm flex items-center gap-1 border border-amber-500"><Star size={12} fill="currentColor" /> Melhor Opção</div>
                                         </div>
                                     )}
-                                    <div>
-                                        <div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div>
-                                    </div>
+                                    <div><div className="text-sm font-bold text-gray-700 mb-2 leading-tight mt-2">{cenario.nome}</div></div>
                                     <div>
                                         <div className="text-xs text-gray-500 mt-2">Patrimônio Final (Legado)</div>
                                         {cenario.valor > 0 || !cenario.mesFim ? (
-                                            <div className="text-lg font-bold text-gray-800">{formatMoney(cenario.valor)}</div>
+                                            <>
+                                                <div className="text-lg font-bold text-gray-800">{formatMoney(cenario.valor)}</div>
+                                                <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1"><CheckCircle size={10}/> Vitalício (Sustentável)</div>
+                                            </>
                                         ) : (
                                             <div className="text-lg font-bold text-red-600">Esgota em {Math.floor((cenario.mesFim - (inputs.anosAcumulacao * 12)) / 12)} anos</div>
                                         )}
                                         <div className="mt-2 text-xs">
-                                            {cenario.quitacao 
-                                                ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> 
-                                                : <span className="text-orange-500">Não quita antecip.</span>
-                                            }
+                                            {cenario.quitacao ? <span className="text-emerald-600 font-semibold">Quita em {Math.floor((cenario.quitacao - (inputs.projetoAno*12))/12)} anos</span> : <span className="text-orange-500">Não quita antecip.</span>}
                                         </div>
                                         <div className="mt-2 text-xs pt-2 border-t border-gray-100">
-                                            <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/>
-                                            <span className="font-semibold text-gray-700">
-                                                {formatMoney(cenario.totalPago)}
-                                            </span>
+                                            <span className="text-gray-500">Total Pago (R$ de hoje):</span><br/><span className="font-semibold text-gray-700">{formatMoney(cenario.totalPago)}</span>
                                         </div>
                                         {cenario.mesFim && (
-                                            <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600">
-                                                <strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.
-                                            </div>
+                                            <div className="mt-2 pt-2 border-t border-red-100 text-xs text-red-600"><strong>Sugestão:</strong> Aporte +{formatMoney(cenario.required)}/mês para viabilizar.</div>
                                         )}
                                     </div>
                                 </div>
                             ))}
                         </div>
-
-                        {/* SMART INSIGHTS */}
-                        {results.insights.length > 0 && (
+                         {results.insights.length > 0 && (
                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <h4 className="text-amber-800 font-bold flex items-center gap-2 mb-2">
-                                    <Lightbulb size={18}/> Insights do Consultor
-                                </h4>
+                                <h4 className="text-amber-800 font-bold flex items-center gap-2 mb-2"><Lightbulb size={18}/> Insights do Consultor</h4>
                                 <ul className="space-y-2">
-                                    {results.insights.map((insight, i) => (
-                                        <li key={i} className="text-sm text-amber-900 flex gap-2">
-                                            <span className="text-amber-500 mt-1">•</span>
-                                            {insight.text}
-                                        </li>
-                                    ))}
+                                    {results.insights.map((insight, i) => <li key={i} className="text-sm text-amber-900 flex gap-2"><span className="text-amber-500 mt-1">•</span>{insight.text}</li>)}
                                 </ul>
                              </div>
                         )}
@@ -1184,9 +1093,7 @@
                     
                     <div className="bg-yellow-50 p-4 rounded-lg text-sm text-yellow-800 flex gap-2 border border-yellow-200 mb-6">
                         <Info size={20} className="shrink-0"/>
-                        <p>
-                            <strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/>
-                        </p>
+                        <p><strong>Análise do Cenário:</strong> {results.explicacaoProj} <br/></p>
                     </div>
 
                     <Card className="h-80">
@@ -1197,34 +1104,22 @@
                                 <XAxis type="number" tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} />
                                 <YAxis dataKey="nome" type="category" width={140} tick={{fontSize: 11}} />
                                 <Tooltip formatter={(value) => formatMoney(value)} />
-                                <Bar dataKey="valor" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                <Bar dataKey="valor" radius={[0, 4, 4, 0]}>
                                     {results.comparativoHibrido.filter(c => c.type === 'compra').map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.active ? '#fbbf24' : '#3b82f6'} />
                                     ))}
-                                    <LabelList dataKey="valor" position="right" formatter={(val) => formatMoney(val)} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }} />
+                                    <LabelList dataKey="valor" position="right" formatter={(val) => formatMoney(val)} style={{ fontSize: '11px', fontWeight: 'bold', fill: '#475569' }} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </Card>
 
-                    {/* NEW EXPLANATION CARD */}
                     <Card className="bg-slate-100 border border-slate-200 mt-6 no-print">
-                         <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                            <Info size={16}/> Metodologia do Cálculo
-                        </h3>
+                         <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3"><Info size={16}/> Metodologia do Cálculo</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
-                            <div>
-                                <strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong>
-                                <p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>{config.savingsLabel}</strong>.</p>
-                            </div>
-                            <div>
-                                <strong className="block text-slate-800 mb-1">2. Cenário de Aquisição</strong>
-                                <p>A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p>
-                            </div>
-                            <div>
-                                <strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong>
-                                <p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p>
-                            </div>
+                            <div><strong className="block text-slate-800 mb-1">1. Definição de Capacidade</strong><p>O sistema assume que sua capacidade total de pagamento mensal é a soma do seu <strong>Aporte Atual</strong> + <strong>{config.savingsLabel}</strong>.</p></div>
+                            <div><strong className="block text-slate-800 mb-1">2. Cenário de Aquisição</strong><p>A capacidade total é usada para pagar a <strong>Parcela</strong>. O que sobrar (Excedente) é dividido entre <strong>Amortização Extra</strong> e <strong>Investimentos</strong> conforme a barrinha do otimizador.</p></div>
+                            <div><strong className="block text-slate-800 mb-1">3. Amortização vs. Investimento</strong><p>Se a taxa de juros do financiamento for maior que o retorno dos investimentos, amortizar é matematicamente melhor. Caso contrário, investir o excedente gera mais riqueza (alavancagem positiva).</p></div>
                         </div>
                     </Card>
                 </div>
@@ -1271,7 +1166,7 @@
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={results.inflacaoData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                     <XAxis dataKey="ano" tickFormatter={(val) => `Daqui ${val} anos`} tick={{fontSize: 12}} />
                                     <YAxis tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)} tick={{fontSize: 12}} />
                                     <Tooltip formatter={(value) => formatMoney(value)} labelFormatter={(label) => `Daqui a ${label} anos`} />
@@ -1314,20 +1209,16 @@
 
             return (
                 <div className="min-h-screen pb-10">
-                    
-                    {/* PRINT MODAL */}
                     <Modal isOpen={showPrintModal} onClose={() => setShowPrintModal(false)} title="Gerar Relatório PDF">
-                        <div className="space-y-4">
+                         <div className="space-y-4">
                             <button onClick={() => handlePrint('current')} className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 transition-colors group">
                                 <span className="font-semibold text-gray-700 group-hover:text-emerald-700">Apenas Aba Atual</span>
                                 <Printer size={20} className="text-gray-400 group-hover:text-emerald-600"/>
                             </button>
-                            
                             <button onClick={() => handlePrint('all')} className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 transition-colors group">
                                 <span className="font-semibold text-gray-700 group-hover:text-emerald-700">Relatório Completo (Todas as Abas)</span>
                                 <ListFilter size={20} className="text-gray-400 group-hover:text-emerald-600"/>
                             </button>
-
                             <div className="border-t border-gray-100 pt-4 mt-2">
                                 <p className="text-sm font-semibold text-gray-500 mb-3">Selecionar Seções:</p>
                                 <div className="space-y-2 mb-4">
@@ -1340,9 +1231,7 @@
                                         </label>
                                     ))}
                                 </div>
-                                <button onClick={() => handlePrint('custom')} className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-semibold shadow-sm transition-colors">
-                                    Gerar PDF Selecionado
-                                </button>
+                                <button onClick={() => handlePrint('custom')} className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-semibold shadow-sm transition-colors">Gerar PDF Selecionado</button>
                             </div>
                         </div>
                     </Modal>
@@ -1350,187 +1239,69 @@
                     <div className="bg-emerald-600 text-white py-8 shadow-lg no-print">
                         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
                             <div>
-                                <h1 className="text-3xl font-bold flex items-center gap-3">
-                                    <Calculator className="h-8 w-8" />
-                                    Simulador de Independência Financeira
-                                </h1>
+                                <h1 className="text-3xl font-bold flex items-center gap-3"><Calculator className="h-8 w-8" /> Simulador de Independência Financeira</h1>
                                 <p className="opacity-90 mt-2">Planeje seu futuro com precisão matemática.</p>
                             </div>
-                            <button 
-                                onClick={openPrintModal}
-                                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
-                                title="Imprimir / Salvar PDF"
-                            >
-                                <Printer size={20} />
-                                <span className="hidden sm:inline">Salvar PDF</span>
-                            </button>
+                            <button onClick={openPrintModal} className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium" title="Imprimir / Salvar PDF"><Printer size={20} /> <span className="hidden sm:inline">Salvar PDF</span></button>
                         </div>
                     </div>
 
                     <div className="max-w-6xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        
                         <PrintHeader title={isPrinting ? (printSections.length > 1 ? "Relatório Personalizado" : "Visualização Detalhada") : "Painel de Controle"} />
 
                         {/* LEFT COLUMN - Ocultar na impressão */}
                         <div className="lg:col-span-4 space-y-6 no-print">
-                            
-                            <Card>
-                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700">
-                                    <TrendingUp className="h-5 w-5" />
-                                    Fase de Acumulação
-                                </h2>
+                             <Card>
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-emerald-700"><TrendingUp className="h-5 w-5" /> Fase de Acumulação</h2>
                                 <InputGroup label="Investimentos Líquidos" icon={DollarSign} value={inputs.patrimonio} onChange={v => updateInput("patrimonio", v)} helpText="Dinheiro disponível hoje em corretoras/bancos." />
-                                
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Aporte Mensal</label>
                                     <div className="space-y-3">
                                         <div className="flex bg-gray-100 rounded-lg p-1">
                                             {['ipca', 'fixo', 'variavel'].map((type) => (
-                                                <button
-                                                    key={type}
-                                                    onClick={() => updateInput('aporteTipo', type)}
-                                                    className={`flex-1 text-xs font-medium py-1.5 rounded transition-all ${inputs.aporteTipo === type ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                                >
-                                                    {type === 'ipca' ? 'Real (IPCA+)' : type === 'fixo' ? 'Fixo' : 'Variável'}
-                                                </button>
+                                                <button key={type} onClick={() => updateInput('aporteTipo', type)} className={`flex-1 text-xs font-medium py-1.5 rounded transition-all ${inputs.aporteTipo === type ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{type === 'ipca' ? 'Real (IPCA+)' : type === 'fixo' ? 'Fixo' : 'Variável'}</button>
                                             ))}
                                         </div>
-                                        
                                         {inputs.aporteTipo !== 'variavel' ? (
                                             <div>
                                                 <InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} />
-                                                {inputs.aporteTipo === 'fixo' && (
-                                                    <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
-                                                        ⚠ O valor de {formatMoney(parseInt(inputs.aporte)/100)} será fixo nominalmente, perdendo poder de compra todo ano.
-                                                    </p>
-                                                )}
+                                                {inputs.aporteTipo === 'fixo' && (<p className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">⚠ O valor será fixo nominalmente, perdendo poder de compra.</p>)}
                                             </div>
                                         ) : (
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <div className="mb-2">
-                                                    <label className="text-xs font-bold text-slate-600 block mb-1">Aporte Inicial (Ano 0-1)</label>
-                                                    <InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} />
-                                                </div>
-                                                
+                                                <div className="mb-2"><label className="text-xs font-bold text-slate-600 block mb-1">Aporte Inicial (Ano 0-1)</label><InputGroup compact value={inputs.aporte} onChange={v => updateInput("aporte", v)} /></div>
                                                 <div className="space-y-2 mb-3 max-h-32 overflow-y-auto scrollbar-thin">
                                                     {inputs.fasesAporte.length === 0 && <p className="text-xs text-slate-400 italic">Nenhuma fase adicionada. Usará o aporte inicial.</p>}
                                                     {inputs.fasesAporte.map((fase) => (
-                                                        <div key={fase.id} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm">
-                                                            <span>Ano {fase.ano}: <strong>{formatMoney(parseInt(fase.valor)/100)}</strong></span>
-                                                            <button onClick={() => removerFase(fase.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
-                                                        </div>
+                                                        <div key={fase.id} className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 text-sm"><span>Ano {fase.ano}: <strong>{formatMoney(parseInt(fase.valor)/100)}</strong></span><button onClick={() => removerFase(fase.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div>
                                                     ))}
                                                 </div>
-                                                
                                                 <div className="flex gap-2 items-end">
-                                                    <div className="w-16">
-                                                        <label className="text-[10px] text-slate-500 block mb-1">Ano</label>
-                                                        <input type="number" className="w-full text-sm border-gray-300 rounded p-1.5 border" placeholder="Ex: 5" value={novaFase.ano} onChange={e => setNovaFase({...novaFase, ano: e.target.value})} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                         <label className="text-[10px] text-slate-500 block mb-1">Novo Aporte</label>
-                                                        <InputGroup compact value={novaFase.valor} onChange={v => setNovaFase({...novaFase, valor: v})} />
-                                                    </div>
+                                                    <div className="w-16"><label className="text-[10px] text-slate-500 block mb-1">Ano</label><input type="number" className="w-full text-sm border-gray-300 rounded p-1.5 border" placeholder="Ex: 5" value={novaFase.ano} onChange={e => setNovaFase({...novaFase, ano: e.target.value})} /></div>
+                                                    <div className="flex-1"><label className="text-[10px] text-slate-500 block mb-1">Novo Aporte</label><InputGroup compact value={novaFase.valor} onChange={v => setNovaFase({...novaFase, valor: v})} /></div>
                                                     <button onClick={adicionarFase} className="bg-emerald-600 text-white p-2 rounded-lg mb-[2px]"><Plus size={16}/></button>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 </div>
-
                                 <InputGroup label="Anos Acumulando" icon={Calendar} type="number" suffix="anos" value={inputs.anosAcumulacao} onChange={v => updateInput("anosAcumulacao", v)} />
                             </Card>
-
+                            {/* ... Other input cards ... */}
+                            <Card><h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700"><Coins className="h-5 w-5" /> Aportes Extras & Variáveis</h2><div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">{inputs.aportesExtras.map(aporte => (<div key={aporte.id} className="flex justify-between items-center bg-indigo-50 p-2 rounded text-sm"><div><div className="font-semibold text-indigo-900">{aporte.nome || "Sem nome"}</div><div className="text-xs text-indigo-700">{aporte.tipo === 'recorrente' ? 'Todo ano (Acumulação)' : `No Ano ${aporte.ano}`} • {formatMoney(parseInt(aporte.valor)/100)}</div></div><button onClick={() => removerAporteExtra(aporte.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16} /></button></div>))}</div><div className="border-t border-gray-100 pt-3"><div className="grid grid-cols-2 gap-2 mb-2"><input placeholder="Nome" className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.nome} onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})} /><select className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.tipo} onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}><option value="recorrente">Recorrente (Anual)</option><option value="unico">Pontual (Único)</option></select></div><div className="grid grid-cols-2 gap-2 mb-2"><InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />{novoAporte.tipo === 'unico' && <input type="number" placeholder="Ano" className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" value={novoAporte.ano} onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})} />}</div><button onClick={adicionarAporteExtra} className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"><Plus size={16} /> Adicionar</button></div></Card>
                             <Card>
-                                <h2 className="text-xl font-bold mb-3 flex items-center gap-2 text-indigo-700">
-                                    <Coins className="h-5 w-5" />
-                                    Aportes Extras & Variáveis
-                                </h2>
-                                <div className="space-y-2 mb-4 max-h-40 overflow-y-auto scrollbar-thin">
-                                    {inputs.aportesExtras.length === 0 && <p className="text-sm text-center text-gray-400 py-2 italic">Nenhum aporte extra adicionado.</p>}
-                                    {inputs.aportesExtras.map(aporte => (
-                                        <div key={aporte.id} className="flex justify-between items-center bg-indigo-50 p-2 rounded text-sm">
-                                            <div>
-                                                <div className="font-semibold text-indigo-900">{aporte.nome || "Sem nome"}</div>
-                                                <div className="text-xs text-indigo-700">
-                                                    {aporte.tipo === 'recorrente' ? 'Todo ano (Acumulação)' : `No Ano ${aporte.ano}`} • {formatMoney(parseInt(aporte.valor)/100)}
-                                                </div>
-                                            </div>
-                                            <button onClick={() => removerAporteExtra(aporte.id)} className="text-red-400 hover:text-red-600 p-1">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="border-t border-gray-100 pt-3">
-                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                        <input placeholder="Nome" className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.nome} onChange={e => setNovoAporte({...novoAporte, nome: e.target.value})} />
-                                        <select className="text-sm border-gray-300 rounded p-1.5 w-full" value={novoAporte.tipo} onChange={e => setNovoAporte({...novoAporte, tipo: e.target.value})}>
-                                            <option value="recorrente">Recorrente (Anual)</option>
-                                            <option value="unico">Pontual (Único)</option>
-                                        </select>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                        <InputGroup compact value={novoAporte.valor} onChange={v => setNovoAporte({...novoAporte, valor: v})} />
-                                        {novoAporte.tipo === 'unico' && <input type="number" placeholder="Ano" className="text-sm border-gray-300 rounded p-1.5 w-full h-[38px]" value={novoAporte.ano} onChange={e => setNovoAporte({...novoAporte, ano: e.target.value})} />}
-                                    </div>
-                                    <button onClick={adicionarAporteExtra} className="w-full flex items-center justify-center gap-1 bg-indigo-600 text-white py-1.5 rounded hover:bg-indigo-700 text-sm font-medium transition-colors"><Plus size={16} /> Adicionar</button>
-                                </div>
-                            </Card>
-
-                            <Card>
-                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-700">
-                                    <Home className="h-5 w-5" />
-                                    Outros Ativos
-                                </h2>
-                                <InputGroup label="FGTS / Previdência" icon={Lock} value={inputs.patrimonioRestrito} onChange={v => updateInput("patrimonioRestrito", v)} helpText="Rende separado e só soma ao saldo na aposentadoria." />
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-700"><Home className="h-5 w-5" /> Outros Ativos</h2>
+                                <InputGroup label="Saldo FGTS" icon={Wallet} value={inputs.saldoFGTS} onChange={v => updateInput("saldoFGTS", v)} helpText="Saldo atual do FGTS." />
+                                <InputGroup label="Previdência Privada" icon={Lock} value={inputs.saldoPrevidencia} onChange={v => updateInput("saldoPrevidencia", v)} helpText="Saldo acumulado em planos de previdência." />
                                 <InputGroup label="Bens (Casa, Carro)" icon={Home} value={inputs.patrimonioImobilizado} onChange={v => updateInput("patrimonioImobilizado", v)} helpText="Compõe patrimônio, mas não gera renda nem paga contas." />
                             </Card>
-
-                            <Card>
-                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600">
-                                    <TrendingDown className="h-5 w-5" />
-                                    Fase de Usufruto
-                                </h2>
-                                <InputGroup label="Saque Mensal Desejado" icon={DollarSign} value={inputs.saque} onChange={v => updateInput("saque", v)} />
-                                <InputGroup label="Duração da Aposentadoria" icon={Calendar} type="number" suffix="anos" value={inputs.anosUsufruto} onChange={v => updateInput("anosUsufruto", v)} />
-                            </Card>
-
-                            <Card>
-                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
-                                    <ShieldCheck className="h-5 w-5" />
-                                    Premissas
-                                </h2>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup label="Retorno Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.retornoAno} onChange={v => updateInput("retornoAno", v)} />
-                                    <InputGroup label="Margem Seg." icon={ShieldCheck} type="number" suffix="%" value={inputs.margemSeguranca} onChange={v => updateInput("margemSeguranca", v)} />
-                                </div>
-                                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={inputs.considerarInflacao} onChange={(e) => updateInput('considerarInflacao', e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5" />
-                                        <span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span>
-                                    </label>
-                                    {inputs.considerarInflacao ? (
-                                        <div className="mt-3 animate-fade-in">
-                                            <InputGroup label="Inflação Estimada" icon={TrendingDown} type="number" suffix="%" value={inputs.inflacao} onChange={v => updateInput("inflacao", v)} />
-                                            <p className="text-xs text-slate-500 mt-1">Cálculo usando Taxa Nominal - Inflação.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="mt-2 text-xs text-slate-500 space-y-1">
-                                            <p className="font-semibold text-slate-700">💡 Modo Juros Reais (Padrão)</p>
-                                            <p>Ao deixar desmarcado, o simulador mantém o <strong>Poder de Compra</strong>.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </Card>
+                            <Card><h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-orange-600"><TrendingDown className="h-5 w-5" /> Fase de Usufruto</h2><InputGroup label="Saque Mensal Desejado" icon={DollarSign} value={inputs.saque} onChange={v => updateInput("saque", v)} /><InputGroup label="Duração da Aposentadoria" icon={Calendar} type="number" suffix="anos" value={inputs.anosUsufruto} onChange={v => updateInput("anosUsufruto", v)} /></Card>
+                            <Card><h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700"><ShieldCheck className="h-5 w-5" /> Premissas</h2><div className="grid grid-cols-2 gap-4"><InputGroup label="Retorno Anual" icon={TrendingUp} type="number" suffix="%" value={inputs.retornoAno} onChange={v => updateInput("retornoAno", v)} /><InputGroup label="Margem Seg." icon={ShieldCheck} type="number" suffix="%" value={inputs.margemSeguranca} onChange={v => updateInput("margemSeguranca", v)} /></div><div className="mt-4 p-3 bg-slate-100 rounded-lg"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={inputs.considerarInflacao} onChange={(e) => updateInput('considerarInflacao', e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 w-5 h-5" /><span className="text-sm font-medium text-slate-700">Usar Taxa Nominal (Desc. Inflação)</span></label>{inputs.considerarInflacao ? (<div className="mt-3 animate-fade-in"><InputGroup label="Inflação Estimada" icon={TrendingDown} type="number" suffix="%" value={inputs.inflacao} onChange={v => updateInput("inflacao", v)} /><p className="text-xs text-slate-500 mt-1">Cálculo usando Taxa Nominal - Inflação.</p></div>) : (<div className="mt-2 text-xs text-slate-500 space-y-1"><p className="font-semibold text-slate-700">💡 Modo Juros Reais (Padrão)</p><p>Ao deixar desmarcado, o simulador mantém o <strong>Poder de Compra</strong>.</p></div>)}</div></Card>
                         </div>
-
+                        
                         {/* RIGHT COLUMN */}
                         <div className="lg:col-span-8 print:col-span-12 print:w-full space-y-6">
-
                             <PrintSummary inputs={inputs} formatMoney={formatMoney} />
-
-                            {/* TAB NAV */}
                             <div className="flex space-x-2 border-b border-gray-200 mb-4 overflow-x-auto pb-1 no-print">
                                 <button onClick={() => setActiveTab('simulacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors ${activeTab === 'simulacao' ? 'border-b-2 border-emerald-500 text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>Simulação Padrão</button>
                                 <button onClick={() => setActiveTab('marcos')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'marcos' ? 'border-b-2 border-amber-500 text-amber-700' : 'text-gray-500 hover:text-gray-700'}`}><Flag size={16}/> Marcos</button>
@@ -1539,8 +1310,8 @@
                                 <button onClick={() => setActiveTab('inflacao')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'inflacao' ? 'border-b-2 border-gray-500 text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}><Banknote size={16}/> Inflação</button>
                                 <button onClick={() => setActiveTab('risco')} className={`pb-2 px-4 whitespace-nowrap font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'risco' ? 'border-b-2 border-purple-500 text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}><Activity size={16}/> Risco</button>
                             </div>
-                            
-                            {/* RENDERIZAÇÃO CONDICIONAL OU RELATÓRIO COMPLETO */}
+
+                            {/* CONDITIONAL RENDER */}
                             {isPrinting ? (
                                 <div className="space-y-8">
                                     {printSections.includes('simulacao') && renderSimulacao()}
@@ -1560,7 +1331,6 @@
                                     {activeTab === 'risco' && renderRisco()}
                                 </>
                             )}
-
                         </div>
                     </div>
                 </div>
