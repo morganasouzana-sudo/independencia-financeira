@@ -112,8 +112,8 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell } from 'recharts';
-        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store } from 'lucide-react';
+        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Legend, ComposedChart, Scatter, PieChart, Pie, Cell, LabelList } from 'recharts';
+        import { Calculator, TrendingUp, TrendingDown, DollarSign, Calendar, ShieldCheck, AlertCircle, ChevronDown, ChevronUp, Activity, AlertTriangle, Zap, Home, Lock, Briefcase, Landmark, Info, Plus, Trash2, Coins, Flag, Trophy, Target, Scale, Banknote, PieChart as PieIcon, ArrowRightLeft, ListFilter, Printer, X, CheckSquare, Square, Sliders, CheckCircle, Lightbulb, Star, Car, Plane, GraduationCap, Store, Eye, EyeOff } from 'lucide-react';
 
         // --- COMPONENTES UI ---
 
@@ -323,7 +323,7 @@
                     label: "Valor do Imóvel", 
                     icon: Home, 
                     showFinancing: true,
-                    showSavings: true,
+                    showSavings: true, // Corrigido de hasSavings para showSavings para consistência
                     savingsLabel: "Aluguel Atual", 
                     savingsHelp: "Valor que deixará de pagar ao ter o imóvel.", 
                     entryLabel: "Entrada Disponível",
@@ -453,7 +453,10 @@
                 }
             };
 
-            const formatMoney = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const formatMoney = (val) => {
+                if (typeof val !== 'number' || isNaN(val)) return "R$ 0,00";
+                return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            };
 
             // --- ENGINE DE CÁLCULO ---
             const results = useMemo(() => {
